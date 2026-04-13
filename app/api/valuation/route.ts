@@ -74,14 +74,13 @@ function isLikelyPrivate(block: string, development: string): boolean {
 async function fetchHDBRecords(
   resourceId: string,
   filters: Record<string, string>,
-  apiKey?: string,
 ): Promise<{ price: number; month: string }[]> {
-  const headers: HeadersInit = {}
-  if (apiKey) headers['Authorization'] = apiKey  // data.gov.sg v2 key format
+  // No auth header — data.gov.sg CKAN API is public and auth breaks it
   const filtersParam = encodeURIComponent(JSON.stringify(filters))
-  const url = `https://data.gov.sg/api/action/datastore_search?resource_id=${resourceId}&filters=${filtersParam}&limit=100&sort=month%20desc`
+  // Note: sort param doesn't work with filters on CKAN — sort client-side instead
+  const url = `https://data.gov.sg/api/action/datastore_search?resource_id=${resourceId}&filters=${filtersParam}&limit=500`
 
-  const res = await fetch(url, { headers, next: { revalidate: 3600 } })
+  const res = await fetch(url, { next: { revalidate: 3600 } })
   if (!res.ok) return []
   const data = await res.json()
   if (!data.success || !data.result?.records) return []
@@ -89,6 +88,7 @@ async function fetchHDBRecords(
   return data.result.records
     .map((r: Record<string, string>) => ({ price: parseFloat(r.resale_price), month: r.month || '' }))
     .filter((r: { price: number; month: string }) => !isNaN(r.price))
+    .sort((a: { price: number; month: string }, b: { price: number; month: string }) => b.month.localeCompare(a.month))
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
     for (const rid of RESOURCE_IDS) {
       const filters: Record<string, string> = { block, street_name: streetForFilter }
       if (flatType) filters.flat_type = flatType
-      const records = await fetchHDBRecords(rid, filters, apiKey)
+      const records = await fetchHDBRecords(rid, filters)
       allRecords.push(...records)
     }
 
@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
       for (const rid of RESOURCE_IDS.slice(0, 1)) {
         const filters: Record<string, string> = { town }
         if (flatType) filters.flat_type = flatType
-        const records = await fetchHDBRecords(rid, filters, apiKey)
+        const records = await fetchHDBRecords(rid, filters)
         if (records.length > allRecords.length) allRecords = records
       }
     }
