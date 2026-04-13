@@ -133,6 +133,7 @@ export async function GET(req: NextRequest) {
     const apiKey = process.env.DATA_GOV_SG_API_KEY
 
     const RESOURCE_IDS = [
+      'd_8b84c4ee58e3cfc0ece0d773c8ca6abc', // 2017-2026 live
       'adbbddd3-30e2-445f-a123-29bee150a6fe',
       'f1765b54-a209-4718-8d38-a39237f502b3',
     ]
