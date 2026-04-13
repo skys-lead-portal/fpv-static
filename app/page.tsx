@@ -2,19 +2,6 @@
 
 import { useState, useRef } from 'react'
 
-interface ValuationResult {
-  block?: string
-  street?: string
-  development?: string
-  town?: string
-  estimatedLow?: string
-  estimatedHigh?: string
-  transactionCount?: number
-  latestMonth?: string
-  isPrivate?: boolean
-  error?: string
-}
-
 export default function Home() {
   const [formData, setFormData] = useState({
     postalCode: '',
@@ -28,7 +15,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
-  const [valuation, setValuation] = useState<ValuationResult | null>(null)
   const formRef = useRef<HTMLDivElement>(null)
   const [suggestions, setSuggestions] = useState<Array<{building: string, address: string, postal: string}>>([])
   const [suggestLoading, setSuggestLoading] = useState(false)
@@ -91,6 +77,14 @@ export default function Home() {
 
   return (
     <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#374151', background: '#fff', lineHeight: 1.6 }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .fpv-grid { grid-template-columns: 1fr !important; }
+          .fpv-trust { gap: 20px !important; }
+          .fpv-hero-btn { width: 100%; box-sizing: border-box; }
+          .fpv-nav-contact { font-size: 13px !important; }
+        }
+      `}</style>
 
       {/* ── NAV ────────────────────────────────────────────── */}
       <nav style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '0 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
@@ -100,10 +94,8 @@ export default function Home() {
             <span style={{ color: '#B22222' }}>Free</span>PropertyValuation.sg
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '28px', fontSize: '14px', color: '#4a4a4a' }}>
-          <a href="#" style={{ color: '#4a4a4a', textDecoration: 'none' }}>Home</a>
-          <a href="#" style={{ color: '#4a4a4a', textDecoration: 'none' }}>About Us</a>
-          <a href="#" style={{ color: '#4a4a4a', textDecoration: 'none' }}>Contact</a>
+        <div style={{ fontSize: '14px', color: '#4a4a4a' }}>
+          <a href="mailto:hello@skysleads.com" style={{ color: '#B22222', textDecoration: 'none', fontWeight: 600 }}>📞 Contact Us</a>
         </div>
       </nav>
 
@@ -135,7 +127,7 @@ export default function Home() {
               onClick={scrollToForm}
               style={{ background: '#B22222', color: '#fff', border: 'none', borderRadius: '5px', padding: '16px 36px', fontSize: '17px', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.3px' }}
             >
-              Get My FREE Property Valuation
+              Get My Free Property Valuation
             </button>
             <p style={{ fontSize: '12px', color: '#555', marginTop: '12px' }}>
               Takes 60 seconds &nbsp;·&nbsp; No obligation &nbsp;·&nbsp; Private assessment
@@ -150,7 +142,7 @@ export default function Home() {
           Many Singapore Homeowners Are Asset Rich But Cash Tight
         </h2>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '48px', alignItems: 'start' }}>
+        <div className="fpv-grid" style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '48px', alignItems: 'start' }}>
 
           {/* ── LEFT: table + checklist ── */}
           <div>
@@ -201,12 +193,12 @@ export default function Home() {
               {submitted ? (
                 <div style={{ textAlign: 'center', padding: '24px 0' }}>
                   <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-                  <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#2c3e50', marginBottom: '10px' }}>Report On Its Way!</h3>
+                  <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#2c3e50', marginBottom: '10px' }}>Request Received!</h3>
                   <p style={{ fontSize: '14px', color: '#4a4a4a', lineHeight: 1.7 }}>
-                    Check your WhatsApp — your personalised property valuation report will arrive in the next 60 seconds.
+                    Check your WhatsApp — our team will be in touch to confirm your property valuation.
                   </p>
                   <p style={{ fontSize: '13px', color: '#888', marginTop: '12px' }}>
-                    Our consultant will also be in touch shortly.
+                    Our consultant will reach out within 1 business day.
                   </p>
                 </div>
               ) : (
@@ -223,13 +215,17 @@ export default function Home() {
                       autoComplete="off"
                       onChange={e => {
                         const raw = e.target.value
-                        // If all digits, treat as postal code; otherwise treat as name search
                         const isNumeric = /^\d+$/.test(raw)
                         const val = isNumeric ? raw.replace(/\D/g, '') : raw
                         setFormData(f => ({ ...f, postalCode: isNumeric ? val : '', postalDisplay: isNumeric ? '' : val }))
                         setShowSuggestions(true)
                         if (suggestTimer.current) clearTimeout(suggestTimer.current)
-                        if (val.length >= 3 && !(isNumeric && val.length === 6)) {
+                        // Auto-accept 6-digit postal without needing dropdown
+                        if (isNumeric && val.length === 6) {
+                          setSuggestions([])
+                          setShowSuggestions(false)
+                          setFormData(f => ({ ...f, postalCode: val, postalDisplay: val }))
+                        } else if (val.length >= 3) {
                           setSuggestLoading(true)
                           suggestTimer.current = setTimeout(async () => {
                             try {
@@ -244,9 +240,6 @@ export default function Home() {
                             } catch { setSuggestions([]) }
                             setSuggestLoading(false)
                           }, 400)
-                        } else if (val.length === 6) {
-                          setSuggestions([])
-                          setShowSuggestions(false)
                         } else {
                           setSuggestions([])
                           setSuggestLoading(false)
@@ -348,11 +341,16 @@ export default function Home() {
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '16px', color: '#4a4a4a', marginBottom: '28px', fontWeight: 600 }}>
             Access Realtors From Singapore&apos;s Top Agencies
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '48px', flexWrap: 'wrap' }}>
-            {['ERA REAL ESTATE', 'Huttons', 'PropNex', 'OrangeTee'].map(agency => (
-              <span key={agency} style={{ fontWeight: 700, color: '#9ca3af', letterSpacing: '0.5px', textTransform: 'uppercase', fontSize: '13px' }}>
-                {agency}
-              </span>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', flexWrap: 'wrap' }}>
+            {[
+              { name: 'ERA', color: '#e31837' },
+              { name: 'Huttons', color: '#003087' },
+              { name: 'PropNex', color: '#e8001d' },
+              { name: 'OrangeTee', color: '#f26522' },
+            ].map(({ name, color }) => (
+              <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '120px', height: '48px', border: '1px solid #e5e7eb', borderRadius: '6px', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <span style={{ fontWeight: 800, color, fontSize: '15px', letterSpacing: '0.5px' }}>{name}</span>
+              </div>
             ))}
           </div>
         </div>
@@ -361,9 +359,12 @@ export default function Home() {
       {/* ── FOOTER ─────────────────────────────────────────── */}
       <footer style={{ padding: '24px 40px', textAlign: 'center' }}>
         <p style={{ fontSize: '11px', color: '#9ca3af', maxWidth: '800px', margin: '0 auto', lineHeight: 1.7 }}>
-          *Valuation estimates are based on recent market transactions and are indicative only. They do not constitute formal property valuation advice. 
-          This site is operated by SKYS Branch Pte Ltd and is intended for informational purposes only. 
+          *Valuation estimates are based on recent market transactions and are indicative only. They do not constitute formal property valuation advice.
+          This site is operated by licensed property consultants in Singapore and is intended for informational purposes only.
           By submitting your information you agree to being contacted by our consultants regarding your property enquiry.
+        </p>
+        <p style={{ fontSize: '11px', color: '#c4c9d4', marginTop: '8px', textAlign: 'center' }}>
+          © 2026 FreePropertyValuation.sg
         </p>
       </footer>
 
