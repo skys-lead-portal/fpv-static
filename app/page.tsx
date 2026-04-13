@@ -51,21 +51,10 @@ export default function Home() {
 
     setLoading(true)
     try {
-      // Fetch valuation at submit time if not already loaded
-      let finalValuation = valuation
-      if (!finalValuation && formData.postalCode) {
-        try {
-          const vRes = await fetch(`/api/valuation?postal=${formData.postalCode}`)
-          if (vRes.ok) {
-            finalValuation = await vRes.json()
-            setValuation(finalValuation)
-          }
-        } catch { /* non-blocking */ }
-      }
       const res = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, propertyType: 'Auto-detect', valuation: finalValuation }),
+        body: JSON.stringify({ ...formData, propertyType: 'Auto-detect' }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
@@ -213,25 +202,6 @@ export default function Home() {
                 <div style={{ textAlign: 'center', padding: '24px 0' }}>
                   <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
                   <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#2c3e50', marginBottom: '10px' }}>Report On Its Way!</h3>
-                  {valuation && !valuation.isPrivate && valuation.estimatedLow ? (
-                    <div style={{ background: '#fff', border: '1px solid #dde3ea', borderRadius: 8, padding: '14px 16px', margin: '12px 0', textAlign: 'left' }}>
-                      <p style={{ margin: '0 0 6px', fontSize: 13, color: '#4a4a4a' }}>
-                        Estimated value for <strong style={{ color: '#c0392b' }}>{valuation.development || formData.postalCode}</strong>:
-                      </p>
-                      <p style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#2c3e50' }}>
-                        {valuation.estimatedLow} – {valuation.estimatedHigh}
-                      </p>
-                      {valuation.transactionCount ? (
-                        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888' }}>
-                          Based on {valuation.transactionCount} recent transactions{valuation.latestMonth ? ` (${valuation.latestMonth})` : ''}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : valuation?.isPrivate ? (
-                    <div style={{ background: '#fff', border: '1px solid #dde3ea', borderRadius: 8, padding: '14px 16px', margin: '12px 0' }}>
-                      <p style={{ margin: 0, fontSize: 13, color: '#4a4a4a' }}>🏙️ Private/Condo property — our consultant will provide a detailed market valuation.</p>
-                    </div>
-                  ) : null}
                   <p style={{ fontSize: '14px', color: '#4a4a4a', lineHeight: 1.7 }}>
                     Check your WhatsApp — your personalised property valuation report will arrive in the next 60 seconds.
                   </p>
