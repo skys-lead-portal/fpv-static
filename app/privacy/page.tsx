@@ -125,7 +125,7 @@ export default function PrivacyPage() {
 
         <Section title="10. Access, Correction and Withdrawal" navy={navy}>
           <p>You may request access to your personal data, request correction of inaccurate data, or withdraw your consent at any time. Please contact:</p>
-          <p style={{ marginTop: 8 }}><strong>📧 </strong><a href="mailto:hello@skysleads.com" style={{ color: navy }}>hello@skysleads.com</a></p>
+          <p style={{ marginTop: 8 }}><strong>📧 </strong><a href="mailto:skysleadgen@gmail.com" style={{ color: navy }}>skysleadgen@gmail.com</a></p>
           <p style={{ marginTop: 4 }}>We will respond within a reasonable timeframe (generally within 14 days).</p>
         </Section>
 
