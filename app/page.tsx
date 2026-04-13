@@ -15,6 +15,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+  const [consent, setConsent] = useState(false)
   const formRef = useRef<HTMLDivElement>(null)
   const [suggestions, setSuggestions] = useState<Array<{building: string, address: string, postal: string}>>([])
   const [suggestLoading, setSuggestLoading] = useState(false)
@@ -34,6 +35,7 @@ export default function Home() {
     if (!formData.floorLevel) { setError('Please select a floor level.'); return }
     if (!formData.name.trim()) { setError('Please enter your name.'); return }
     if (!formData.mobile || formData.mobile.length !== 8) { setError('Please enter a valid 8-digit mobile number.'); return }
+    if (!consent) { setError('Please read and agree to the Privacy Policy to continue.'); return }
 
     setLoading(true)
     try {
@@ -343,9 +345,24 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* PDPA Consent */}
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 14 }}>
+                    <input
+                      type="checkbox"
+                      checked={consent}
+                      onChange={e => setConsent(e.target.checked)}
+                      style={{ marginTop: 3, width: 15, height: 15, flexShrink: 0, accentColor: navy }}
+                    />
+                    <span style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.6 }}>
+                      By submitting this form, I confirm that I have read and understood the{' '}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: navy, textDecoration: 'underline' }}>Privacy Policy</a>
+                      {' '}and consent to SKYS Branch Pte Ltd collecting, using, disclosing and retaining my personal data to contact me regarding my enquiry and provide financial advisory information relating to products distributed by Manulife Financial Advisers Pte Ltd. I consent to being contacted via phone, SMS, WhatsApp, and email, even if my number is listed on the Do Not Call Registry (DNCR). I understand I may withdraw this consent at any time.
+                    </span>
+                  </label>
+
                   <button
                     type="submit" disabled={loading}
-                    style={{ width: '100%', padding: '15px', background: loading ? '#9CA3AF' : navy, color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', marginTop: '4px', letterSpacing: '0.2px', boxShadow: loading ? 'none' : `0 4px 16px rgba(27,43,75,0.3)`, transition: 'all 0.15s' }}
+                    style={{ width: '100%', padding: '15px', background: loading ? '#9CA3AF' : navy, color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 800, cursor: loading ? 'not-allowed' : 'pointer', letterSpacing: '0.2px', boxShadow: loading ? 'none' : `0 4px 16px rgba(27,43,75,0.3)`, transition: 'all 0.15s' }}
                   >
                     {loading ? 'Submitting...' : 'Get My Free Valuation Report →'}
                   </button>
