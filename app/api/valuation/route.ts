@@ -74,13 +74,15 @@ function isLikelyPrivate(block: string, development: string): boolean {
 async function fetchHDBRecords(
   resourceId: string,
   filters: Record<string, string>,
+  apiKey?: string,
 ): Promise<{ price: number; month: string }[]> {
-  // No auth header — data.gov.sg CKAN API is public and auth breaks it
+  // data.gov.sg v2 key in Authorization header lifts rate limits
+  const headers: HeadersInit = apiKey ? { 'Authorization': apiKey } : {}
   const filtersParam = encodeURIComponent(JSON.stringify(filters))
   // Note: sort param doesn't work with filters on CKAN — sort client-side instead
   const url = `https://data.gov.sg/api/action/datastore_search?resource_id=${resourceId}&filters=${filtersParam}&limit=500`
 
-  const res = await fetch(url, { next: { revalidate: 3600 } })
+  const res = await fetch(url, { headers, next: { revalidate: 3600 } })
   if (!res.ok) return []
   const data = await res.json()
   if (!data.success || !data.result?.records) return []
@@ -144,7 +146,7 @@ export async function GET(req: NextRequest) {
     for (const rid of RESOURCE_IDS) {
       const filters: Record<string, string> = { block, street_name: streetForFilter }
       if (flatType) filters.flat_type = flatType
-      const records = await fetchHDBRecords(rid, filters)
+      const records = await fetchHDBRecords(rid, filters, apiKey)
       allRecords.push(...records)
     }
 
@@ -152,7 +154,7 @@ export async function GET(req: NextRequest) {
       for (const rid of RESOURCE_IDS.slice(0, 1)) {
         const filters: Record<string, string> = { town }
         if (flatType) filters.flat_type = flatType
-        const records = await fetchHDBRecords(rid, filters)
+        const records = await fetchHDBRecords(rid, filters, apiKey)
         if (records.length > allRecords.length) allRecords = records
       }
     }
