@@ -26,29 +26,34 @@ export async function POST(req: NextRequest) {
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
     if (!supabaseUrl || !supabaseKey) {
       console.error('[Submit] Missing Supabase env vars')
       return NextResponse.json({ success: true })
     }
 
-    // ── Save lead to Supabase ──────────────────────────────────────────────
-    const record: Record<string, unknown> = {
-      name: name.trim(),
-      phone: mobile.trim(),
-      postal_code: postalCode,
-      unit_type: unitType,
-      floor_level: floorLevel,
-      source: 'fpv',
+    const normalizedPhone = normalizePhone(mobile.trim())
+
+    // ── Save lead to `leads` table (SKYS admin portal source of truth) ──────
+    const leadRecord: Record<string, unknown> = {
+      full_name: name.trim(),
+      mobile: normalizedPhone,
       source_id: SOURCE_ID,
+      status: 'new',
+      product_interest: 'Property Valuation',
+      lead_score: 'warm',
+      lead_score_reason: 'FPV form submission',
+      metadata: {
+        postal_code: postalCode,
+        unit_type: unitType,
+        floor_level: floorLevel,
+        source: 'fpv',
+        ...(valuation ? { valuation } : {}),
+      },
     }
 
-    if (valuation) {
-      record.valuation_json = JSON.stringify(valuation)
-    }
-
-    const res = await fetch(`${supabaseUrl}/rest/v1/mortgage_leads`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/leads`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -56,12 +61,14 @@ export async function POST(req: NextRequest) {
         'Authorization': `Bearer ${supabaseKey}`,
         'Prefer': 'return=minimal',
       },
-      body: JSON.stringify(record),
+      body: JSON.stringify(leadRecord),
     })
 
     if (!res.ok) {
       const errText = await res.text()
       console.error('[Submit] Supabase error:', res.status, errText)
+    } else {
+      console.log('[Submit] Lead saved to leads table:', normalizedPhone)
     }
 
     // ── Send WhatsApp via approved template ────────────────────────────────
@@ -71,7 +78,6 @@ export async function POST(req: NextRequest) {
 
     if (accountSid && authToken && fromRaw) {
       try {
-        const normalizedPhone = normalizePhone(mobile.trim())
         const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`
         const to = `whatsapp:${normalizedPhone}`
 
@@ -104,10 +110,7 @@ export async function POST(req: NextRequest) {
         }
       } catch (waErr) {
         console.error('[WA] Unexpected error:', waErr)
-        // Non-blocking — lead is already saved
       }
-    } else {
-      console.warn('[WA] Missing Twilio env vars — skipping WhatsApp send')
     }
 
     return NextResponse.json({ success: true })
