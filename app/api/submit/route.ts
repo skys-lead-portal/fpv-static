@@ -113,6 +113,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Telegram notification ─────────────────────────────────────────────
+    const botToken = process.env.TELEGRAM_BOT_TOKEN
+    const chatId = process.env.TELEGRAM_FPV_GROUP_ID
+    if (botToken && chatId) {
+      try {
+        const text = `🏠 *New FPV Lead*\n👤 ${name.trim()}\n📱 ${normalizedPhone}\n📍 Postal: ${postalCode}\n🏢 ${unitType} · ${floorLevel}\n🔗 via fpv-static.vercel.app`
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown', disable_web_page_preview: true }),
+        })
+      } catch (tgErr) {
+        console.error('[TG] Notify error:', tgErr)
+      }
+    }
+
     // Always return success to user — backend errors are internal
     return NextResponse.json({ success: true })
 
