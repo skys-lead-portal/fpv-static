@@ -103,9 +103,7 @@ export default function Home() {
       {/* ── NAV ────────────────────────────────────────────── */}
       <nav className="fpv-nav" style={{ background: '#fff', borderBottom: '1px solid #E8EDF5', padding: '0 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: 32, height: 32, background: navy, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '16px' }}>🏠</span>
-          </div>
+          <img src="/favicon.svg" alt="SGHomeValuation" style={{ width: 32, height: 32, borderRadius: 6 }} />
           <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '17px', fontWeight: 700, color: navy, letterSpacing: '-0.3px' }}>
             SG<span style={{ color: gold }}>Home</span>Valuation
           </span>
