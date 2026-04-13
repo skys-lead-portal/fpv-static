@@ -62,25 +62,6 @@ export async function POST(req: NextRequest) {
         if (!res.ok) {
           const errText = await res.text()
           console.error('[Submit] leads table error:', res.status, errText)
-          // Fallback: save to mortgage_leads so lead is never lost
-          await fetch(`${supabaseUrl}/rest/v1/mortgage_leads`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': supabaseKey,
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Prefer': 'return=minimal',
-            },
-            body: JSON.stringify({
-              name: name.trim(),
-              phone: normalizedPhone,
-              postal_code: postalCode,
-              unit_type: unitType,
-              floor_level: floorLevel,
-              source: 'fpv',
-              source_id: SOURCE_ID,
-            }),
-          }).catch(e => console.error('[Submit] fallback mortgage_leads error:', e))
         } else {
           console.log('[Submit] Lead saved:', normalizedPhone)
         }
