@@ -74,15 +74,13 @@ function isLikelyPrivate(block: string, development: string): boolean {
 async function fetchHDBRecords(
   resourceId: string,
   filters: Record<string, string>,
-  apiKey: string | undefined,
+  _apiKey?: string,
 ): Promise<{ price: number; month: string }[]> {
-  const headers: HeadersInit = {}
-  if (apiKey) headers['Token'] = apiKey
-
+  // data.gov.sg CKAN API is public — auth header breaks the response
   const filtersParam = encodeURIComponent(JSON.stringify(filters))
   const url = `https://data.gov.sg/api/action/datastore_search?resource_id=${resourceId}&filters=${filtersParam}&limit=100&sort=month%20desc`
 
-  const res = await fetch(url, { headers, next: { revalidate: 3600 } })
+  const res = await fetch(url, { next: { revalidate: 3600 } })
   if (!res.ok) return []
   const data = await res.json()
   if (!data.success || !data.result?.records) return []
