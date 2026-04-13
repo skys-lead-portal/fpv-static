@@ -1,22 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-
-interface FormData {
-  postalCode: string
-  unitType: string
-  floorLevel: string
-  name: string
-  mobile: string
-}
-
-interface OneMapResult {
-  BUILDING: string
-  ADDRESS: string
-  POSTAL: string
-  BLK_NO: string
-  ROAD_NAME: string
-}
+import { useState, useRef } from 'react'
 
 interface ValuationResult {
   block?: string
@@ -28,169 +12,46 @@ interface ValuationResult {
   transactionCount?: number
   latestMonth?: string
   isPrivate?: boolean
-  message?: string
   error?: string
 }
 
-const UNIT_TYPES = ['1-Room', '2-Room', '3-Room', '4-Room', '5-Room', 'Executive', 'Jumbo', 'Private/Condo']
-const FLOOR_LEVELS = ['Low (1–5)', 'Mid (6–15)', 'High (16–25)', 'Top (26+)']
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#374151',
-  marginBottom: 6,
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  border: '1px solid #d1d5db',
-  borderRadius: 6,
-  fontSize: 15,
-  color: '#1a1a1a',
-  outline: 'none',
-  background: '#fff',
-}
-
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-  appearance: 'none',
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 12px center',
-  paddingRight: 32,
-  cursor: 'pointer',
-}
-
-export default function FPVPage() {
-  const [formData, setFormData] = useState<FormData>({
+export default function Home() {
+  const [formData, setFormData] = useState({
     postalCode: '',
+    postalDisplay: '',
     unitType: '',
     floorLevel: '',
     name: '',
     mobile: '',
+    email: '',
   })
-  const [postalDisplay, setPostalDisplay] = useState('')
-  const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [errors, setErrors] = useState<Partial<FormData>>({})
-
-  // Autocomplete state
-  const [suggestions, setSuggestions] = useState<OneMapResult[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [searchLoading, setSearchLoading] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // Valuation state
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
   const [valuation, setValuation] = useState<ValuationResult | null>(null)
-  const [valuationLoading, setValuationLoading] = useState(false)
+  const formRef = useRef<HTMLDivElement>(null)
+  const [suggestions, setSuggestions] = useState<Array<{building: string, address: string, postal: string}>>([])
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const postalWrapRef = useRef<HTMLDivElement>(null)
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
-          inputRef.current && !inputRef.current.contains(e.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const fetchValuation = useCallback(async (postal: string) => {
-    if (!/^\d{6}$/.test(postal)) return
-    setValuationLoading(true)
-    setValuation(null)
-    try {
-      const res = await fetch(`/api/valuation?postal=${postal}`)
-      if (res.ok) {
-        const data = await res.json()
-        setValuation(data)
-      }
-    } catch {
-      // silent fail
-    } finally {
-      setValuationLoading(false)
-    }
-  }, [])
-
-  const handlePostalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
-    setPostalDisplay(val)
-    setValuation(null)
-
-    // If exactly 6 digits → treat as postal directly
-    if (/^\d{6}$/.test(val)) {
-      setSuggestions([])
-      setShowDropdown(false)
-      setFormData(prev => ({ ...prev, postalCode: val }))
-      fetchValuation(val)
-      return
-    }
-
-    // Clear postal from formData if input changed
-    setFormData(prev => ({ ...prev, postalCode: '' }))
-
-    if (val.length < 3) {
-      setSuggestions([])
-      setShowDropdown(false)
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-      return
-    }
-
-    // Debounce OneMap search
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
-      setSearchLoading(true)
-      try {
-        const res = await fetch(
-          `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(val)}&returnGeom=N&getAddrDetails=Y&pageNum=1`
-        )
-        if (res.ok) {
-          const data = await res.json()
-          const results: OneMapResult[] = (data.results || []).slice(0, 6)
-          setSuggestions(results)
-          setShowDropdown(results.length > 0)
-        }
-      } catch {
-        setSuggestions([])
-      } finally {
-        setSearchLoading(false)
-      }
-    }, 400)
-  }
-
-  const handleSelectSuggestion = (result: OneMapResult) => {
-    const postal = result.POSTAL
-    const devName = result.BUILDING && result.BUILDING !== 'NIL' ? result.BUILDING : result.ROAD_NAME
-    setPostalDisplay(`${devName} · ${postal}`)
-    setFormData(prev => ({ ...prev, postalCode: postal }))
-    setSuggestions([])
-    setShowDropdown(false)
-    fetchValuation(postal)
-  }
-
-  const validate = () => {
-    const e: Partial<FormData> = {}
-    if (!formData.postalCode) e.postalCode = 'Please select a property'
-    if (!formData.unitType) e.unitType = 'Please select unit type'
-    if (!formData.floorLevel) e.floorLevel = 'Please select floor level'
-    if (!formData.name.trim()) e.name = 'Please enter your name'
-    if (!/^[689]\d{7}$/.test(formData.mobile)) e.mobile = 'Enter a valid 8-digit SG mobile number'
-    setErrors(e)
-    return Object.keys(e).length === 0
+  const scrollToForm = () => {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validate()) return
+    setError('')
+    if (!formData.postalCode || formData.postalCode.length !== 6) { setError('Please select your property from the dropdown suggestions.'); return }
+    if (!formData.unitType) { setError('Please select a unit type.'); return }
+    if (!formData.floorLevel) { setError('Please select a floor level.'); return }
+    if (!formData.name.trim()) { setError('Please enter your name.'); return }
+    if (!formData.mobile || formData.mobile.length !== 8) { setError('Please enter a valid 8-digit mobile number.'); return }
+
     setLoading(true)
     try {
-      // If no valuation yet, fetch it now before submitting
+      // Fetch valuation at submit time if not already loaded
       let finalValuation = valuation
       if (!finalValuation && formData.postalCode) {
         try {
@@ -199,356 +60,340 @@ export default function FPVPage() {
             finalValuation = await vRes.json()
             setValuation(finalValuation)
           }
-        } catch {
-          // non-blocking — submit anyway
-        }
+        } catch { /* non-blocking */ }
       }
-      await fetch('/api/submit', {
+      const res = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, valuation: finalValuation }),
+        body: JSON.stringify({ ...formData, propertyType: 'Auto-detect', valuation: finalValuation }),
       })
-    } catch {
-      // still show success
-    } finally {
-      setLoading(false)
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setError(data.error || 'Something went wrong. Please try again.')
+        setLoading(false)
+        return
+      }
       setSubmitted(true)
+    } catch {
+      setError('Network error. Please try again.')
     }
+    setLoading(false)
   }
 
-  // ── Submitted State ────────────────────────────────────────────────────────
-  if (submitted) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#f0f4f8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
-        <div style={{ background: '#fff', borderRadius: 12, padding: '40px 32px', maxWidth: 520, width: '100%', textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-          <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 26, color: '#1a1a1a', margin: '0 0 12px' }}>Report On Its Way!</h2>
-
-          {valuation && !valuation.isPrivate && valuation.estimatedLow ? (
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px 20px', margin: '16px 0', textAlign: 'left' }}>
-              <p style={{ margin: '0 0 8px', color: '#374151', fontSize: 14 }}>
-                Your free property valuation for <strong style={{ color: '#B22222' }}>{valuation.development}</strong> is ready.
-              </p>
-              <p style={{ margin: '0 0 4px', color: '#6b7280', fontSize: 13 }}>
-                📊 Based on {valuation.transactionCount} recent transactions
-                {valuation.latestMonth ? ` (${valuation.latestMonth})` : ''}:
-              </p>
-              <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>
-                💰 Estimated Market Value: {valuation.estimatedLow} – {valuation.estimatedHigh}
-              </p>
-            </div>
-          ) : valuation?.isPrivate ? (
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px 20px', margin: '16px 0' }}>
-              <p style={{ margin: 0, color: '#374151', fontSize: 14 }}>
-                🏙️ Private/Condo property detected. Our consultant will provide a detailed market valuation.
-              </p>
-            </div>
-          ) : null}
-
-          <p style={{ color: '#4b5563', fontSize: 15, margin: '12px 0 6px' }}>
-            Check your WhatsApp — your personalised report will arrive shortly.
-          </p>
-          <p style={{ color: '#6b7280', fontSize: 14, margin: 0 }}>
-            Our consultant will also be in touch within 1 business day.
-          </p>
-        </div>
-      </div>
-    )
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    border: '1px solid #d1d5db',
+    borderRadius: '4px',
+    fontSize: '14px',
+    color: '#374151',
+    background: '#fff',
+    boxSizing: 'border-box',
+    outline: 'none',
   }
 
-  // ── Main Page ──────────────────────────────────────────────────────────────
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#374151',
+    marginBottom: '5px',
+  }
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f4f8', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', color: '#374151', background: '#fff', lineHeight: 1.6 }}>
 
-      {/* Header */}
-      <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '0 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: 'Georgia, serif', fontSize: 18, fontWeight: 700, color: '#1a1a1a' }}>
-            🏠 FreePropertyValuation.sg
-          </div>
-          <div style={{ fontSize: 13, color: '#6b7280' }}>Singapore&apos;s Trusted Property Valuation Tool</div>
+      {/* ── NAV ────────────────────────────────────────────── */}
+      <nav style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '0 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '60px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '22px' }}>🏠</span>
+          <span style={{ fontFamily: 'Georgia, serif', fontSize: '17px', fontWeight: 700, color: '#2c3e50' }}>
+            <span style={{ color: '#B22222' }}>Free</span>PropertyValuation.sg
+          </span>
         </div>
-      </header>
+        <div style={{ display: 'flex', gap: '28px', fontSize: '14px', color: '#4a4a4a' }}>
+          <a href="#" style={{ color: '#4a4a4a', textDecoration: 'none' }}>Home</a>
+          <a href="#" style={{ color: '#4a4a4a', textDecoration: 'none' }}>About Us</a>
+          <a href="#" style={{ color: '#4a4a4a', textDecoration: 'none' }}>Contact</a>
+        </div>
+      </nav>
 
-      {/* Hero */}
-      <section style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)', color: '#fff', padding: '60px 24px 80px' }}>
-        <div style={{ maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
-          <p style={{ fontSize: 13, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 12 }}>
-            🏆 Singapore&apos;s #1 Free Property Valuation Tool
-          </p>
-          <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 'clamp(28px, 5vw, 46px)', lineHeight: 1.2, marginBottom: 16, color: '#fff' }}>
-            Know What Your Property Is Worth — <em style={{ color: '#fbbf24' }}>Before You Sell</em>
-          </h1>
-          <p style={{ fontSize: 16, color: '#cbd5e1', marginBottom: 8 }}>
-            Based on actual HDB & private transactions. Get your personalised report in 60 seconds.
-          </p>
-          <p style={{ fontSize: 13, color: '#64748b' }}>No spam. No obligation. 100% free.</p>
+      {/* ── HERO ───────────────────────────────────────────── */}
+      <section style={{ position: 'relative', overflow: 'hidden', minHeight: '420px', display: 'flex', alignItems: 'center' }}>
+        {/* Full-width background image */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/hero-couple.jpg"
+          alt="Singapore homeowners"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }}
+        />
+        {/* Gradient overlay — left side darker for text legibility */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(240,244,248,0.97) 0%, rgba(240,244,248,0.88) 45%, rgba(240,244,248,0.3) 70%, rgba(240,244,248,0) 100%)' }} />
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 2, maxWidth: '1140px', margin: '0 auto', padding: '56px 40px', width: '100%' }}>
+          <div style={{ maxWidth: '520px' }}>
+            <h1 style={{ fontFamily: 'Georgia, serif', fontSize: 'clamp(28px, 3vw, 42px)', fontWeight: 700, color: '#2c3e50', lineHeight: 1.25, marginBottom: '20px' }}>
+              How Much Is Your Property<br />Really Worth Today?
+            </h1>
+            <p style={{ fontSize: '16px', color: '#4a4a4a', marginBottom: '12px' }}>
+              Many Singapore homeowners may be sitting on{' '}
+              <strong style={{ color: '#2c3e50' }}>$300K – $1M+</strong> in untapped property equity.
+            </p>
+            <p style={{ fontSize: '14px', color: '#4a4a4a', marginBottom: '32px', lineHeight: 1.7 }}>
+              Your home may be your largest retirement asset. Explore how selling or restructuring your property could unlock significant liquidity for retirement income, healthcare, and lifestyle flexibility.
+            </p>
+            <button
+              onClick={scrollToForm}
+              style={{ background: '#B22222', color: '#fff', border: 'none', borderRadius: '5px', padding: '16px 36px', fontSize: '17px', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.3px' }}
+            >
+              Get My FREE Property Valuation
+            </button>
+            <p style={{ fontSize: '12px', color: '#555', marginTop: '12px' }}>
+              Takes 60 seconds &nbsp;·&nbsp; No obligation &nbsp;·&nbsp; Private assessment
+            </p>
+          </div>
         </div>
       </section>
 
-      {/* Main Content */}
-      <div style={{ maxWidth: 1100, margin: '-40px auto 0', padding: '0 16px 60px', display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      {/* ── CONTENT + FORM ─────────────────────────────────── */}
+      <section style={{ padding: '60px 40px', maxWidth: '1140px', margin: '0 auto' }}>
+        <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 'clamp(22px, 2.5vw, 30px)', fontWeight: 700, color: '#2c3e50', marginBottom: '32px', textAlign: 'center' }}>
+          Many Singapore Homeowners Are Asset Rich But Cash Tight
+        </h2>
 
-        {/* Form Card */}
-        <div style={{ flex: '1 1 380px', minWidth: 320, background: '#fff', borderRadius: 12, padding: '32px 28px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #e5e7eb' }}>
-          <h2 style={{ fontFamily: 'Georgia, serif', fontSize: 22, color: '#1a1a1a', margin: '0 0 6px' }}>Get Your Free Valuation</h2>
-          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 24 }}>Takes less than 60 seconds</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '48px', alignItems: 'start' }}>
 
-          <form onSubmit={handleSubmit} noValidate>
-
-            {/* Postal Code with Autocomplete */}
-            <div style={{ marginBottom: 16, position: 'relative' }}>
-              <label style={labelStyle}>Property (Search by name or postal code) *</label>
-              <input
-                ref={inputRef}
-                type="text"
-                value={postalDisplay}
-                onChange={handlePostalInputChange}
-                placeholder="e.g. Westmere or 609652"
-                style={{ ...inputStyle, borderColor: errors.postalCode ? '#ef4444' : '#d1d5db' }}
-                autoComplete="off"
-              />
-
-              {/* Dropdown */}
-              {showDropdown && (
-                <div
-                  ref={dropdownRef}
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    zIndex: 100,
-                    background: '#fff',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 6,
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                    marginTop: 2,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {searchLoading ? (
-                    <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: 14 }}>Searching...</div>
-                  ) : suggestions.length === 0 ? (
-                    <div style={{ padding: '10px 14px', color: '#6b7280', fontSize: 14 }}>No results found</div>
-                  ) : suggestions.map((r, i) => {
-                    const devName = r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : r.ROAD_NAME
-                    return (
-                      <div
-                        key={i}
-                        onMouseDown={() => handleSelectSuggestion(r)}
-                        style={{
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          borderBottom: i < suggestions.length - 1 ? '1px solid #f3f4f6' : 'none',
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#f7f9fc')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        <div style={{ fontWeight: 600, color: '#2c3e50', fontSize: 14 }}>{devName}</div>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-                          {r.ADDRESS} · {r.POSTAL}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {errors.postalCode && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.postalCode}</p>}
-            </div>
-
-            {/* Valuation Card */}
-            {valuationLoading && (
-              <div style={{ padding: '12px 16px', marginBottom: 14, background: '#f8fafc', border: '1px solid #d1d5db', borderRadius: 6, color: '#6b7280', fontSize: 14 }}>
-                ⏳ Looking up valuation...
-              </div>
-            )}
-
-            {valuation && !valuationLoading && (
-              <div style={{
-                background: '#fff',
-                border: '1px solid #d1d5db',
-                borderRadius: 6,
-                padding: '14px 16px',
-                marginBottom: 14,
-              }}>
-                {valuation.isPrivate ? (
-                  <p style={{ margin: 0, color: '#374151', fontSize: 14 }}>
-                    🏙️ Private/Condo property detected. Our consultant will provide a detailed market valuation.
-                  </p>
-                ) : valuation.estimatedLow ? (
-                  <>
-                    <p style={{ margin: '0 0 4px', fontSize: 15 }}>
-                      <span style={{ color: '#B22222', fontWeight: 700 }}>🏡 {valuation.development}</span>
-                      {valuation.street && <span style={{ color: '#6b7280', fontWeight: 400, fontSize: 13 }}> · {valuation.block ? `${valuation.block} ` : ''}{valuation.street}</span>}
-                    </p>
-                    <p style={{ margin: '0 0 6px', color: '#6b7280', fontSize: 12 }}>
-                      📊 Based on {valuation.transactionCount} recent transactions
-                    </p>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: 18, color: '#2c3e50' }}>
-                      💰 Estimated: {valuation.estimatedLow} – {valuation.estimatedHigh}
-                    </p>
-                  </>
-                ) : valuation.error ? null : null}
-              </div>
-            )}
-
-            {/* Unit Type */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Unit Type *</label>
-              <select
-                value={formData.unitType}
-                onChange={e => setFormData(prev => ({ ...prev, unitType: e.target.value }))}
-                style={{ ...selectStyle, borderColor: errors.unitType ? '#ef4444' : '#d1d5db' }}
-              >
-                <option value="">Select unit type</option>
-                {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              {errors.unitType && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.unitType}</p>}
-            </div>
-
-            {/* Floor Level */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Floor Level *</label>
-              <select
-                value={formData.floorLevel}
-                onChange={e => setFormData(prev => ({ ...prev, floorLevel: e.target.value }))}
-                style={{ ...selectStyle, borderColor: errors.floorLevel ? '#ef4444' : '#d1d5db' }}
-              >
-                <option value="">Select floor level</option>
-                {FLOOR_LEVELS.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-              {errors.floorLevel && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.floorLevel}</p>}
-            </div>
-
-            {/* Name */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Your Name *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Full name"
-                style={{ ...inputStyle, borderColor: errors.name ? '#ef4444' : '#d1d5db' }}
-              />
-              {errors.name && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.name}</p>}
-            </div>
-
-            {/* Mobile */}
-            <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>WhatsApp / Mobile Number *</label>
-              <input
-                type="tel"
-                value={formData.mobile}
-                onChange={e => setFormData(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '') }))}
-                placeholder="e.g. 91234567"
-                maxLength={8}
-                style={{ ...inputStyle, borderColor: errors.mobile ? '#ef4444' : '#d1d5db' }}
-              />
-              {errors.mobile && <p style={{ color: '#ef4444', fontSize: 12, margin: '4px 0 0' }}>{errors.mobile}</p>}
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: loading ? '#9ca3af' : '#B22222',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                letterSpacing: '0.02em',
-              }}
-            >
-              {loading ? 'Submitting...' : '🏠 Get My Free Valuation Report →'}
-            </button>
-
-            <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 12, marginBottom: 0 }}>
-              By submitting, you agree to be contacted by a licensed property consultant.
-            </p>
-          </form>
-        </div>
-
-        {/* Right Column */}
-        <div style={{ flex: '1 1 340px', minWidth: 280 }}>
-
-          {/* Why Get Valued */}
-          <div style={{ background: '#fff', borderRadius: 12, padding: '28px 24px', marginBottom: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb' }}>
-            <h3 style={{ fontFamily: 'Georgia, serif', fontSize: 18, color: '#1a1a1a', marginTop: 0, marginBottom: 16 }}>Why Get Valued Now?</h3>
-            {[
-              ['💸', 'Sellers who know their property value negotiate 8–12% higher'],
-              ['📊', 'Singapore HDB prices up 4.9% in 2024 — many owners are sitting on gains'],
-              ['⏱️', 'Get your report in under 60 seconds, based on real transaction data'],
-              ['🔒', 'No obligation — just knowledge'],
-            ].map(([icon, text], i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 18, lineHeight: 1.4 }}>{icon}</span>
-                <p style={{ margin: 0, fontSize: 14, color: '#4b5563', lineHeight: 1.5 }}>{text}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Recent Transactions */}
-          <div style={{ background: '#fff', borderRadius: 12, padding: '28px 24px', marginBottom: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb' }}>
-            <h3 style={{ fontFamily: 'Georgia, serif', fontSize: 18, color: '#1a1a1a', marginTop: 0, marginBottom: 16 }}>Recent HDB Transactions</h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          {/* ── LEFT: table + checklist ── */}
+          <div>
+            {/* Table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '36px', fontSize: '14px' }}>
               <thead>
-                <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                  {['Town', 'Flat Type', 'Price', 'Month'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: '#6b7280', fontWeight: 600 }}>{h}</th>
-                  ))}
+                <tr>
+                  <th style={{ background: '#6b8cae', color: '#fff', padding: '12px 16px', textAlign: 'left', fontWeight: 600 }}>Property Value (Example)</th>
+                  <th style={{ background: '#6b8cae', color: '#fff', padding: '12px 16px', textAlign: 'left', fontWeight: 600 }}>Potential Cash After<br/>Right-Sizing</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  ['Queenstown', '4-Room', 'S$820K', 'Feb 2025'],
-                  ['Bishan', '5-Room', 'S$1.05M', 'Feb 2025'],
-                  ['Tampines', '4-Room', 'S$680K', 'Jan 2025'],
-                  ['Toa Payoh', 'Executive', 'S$930K', 'Jan 2025'],
-                  ['Ang Mo Kio', '3-Room', 'S$490K', 'Dec 2024'],
-                ].map(([town, flat, price, month], i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '8px', color: '#374151' }}>{town}</td>
-                    <td style={{ padding: '8px', color: '#374151' }}>{flat}</td>
-                    <td style={{ padding: '8px', color: '#B22222', fontWeight: 600 }}>{price}</td>
-                    <td style={{ padding: '8px', color: '#6b7280' }}>{month}</td>
+                  ['$2.4M Landed', '$800K – $1.2M'],
+                  ['$1.6M Condo', '$400K – $600K'],
+                  ['$1.2M HDB', '$200K – $400K'],
+                ].map(([prop, cash], i) => (
+                  <tr key={prop} style={{ background: i % 2 === 0 ? '#fff' : '#f7f9fc' }}>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', color: '#4a4a4a' }}>{prop}</td>
+                    <td style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', fontWeight: 700, color: '#2c3e50' }}>{cash}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {/* Checklist */}
+            <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: 700, color: '#2c3e50', marginBottom: '16px' }}>
+              What You Will Discover
+            </h3>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {[
+                "Your property's latest market valuation",
+                "How much cash you could unlock",
+                "Whether selling or restructuring makes sense",
+                "Options such as right-sizing or equity loans.",
+              ].map(item => (
+                <li key={item} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '15px', color: '#4a4a4a' }}>
+                  <span style={{ color: '#2e7d32', fontSize: '16px', fontWeight: 700, marginTop: '1px', flexShrink: 0 }}>✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* ── RIGHT: form ── */}
+          <div ref={formRef} id="lead-form">
+            <div style={{ background: '#f0f4f8', borderRadius: '8px', padding: '28px 24px', boxShadow: '0 2px 16px rgba(0,0,0,0.10)', border: '1px solid #dde3ea' }}>
+              {submitted ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+                  <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '20px', color: '#2c3e50', marginBottom: '10px' }}>Report On Its Way!</h3>
+                  {valuation && !valuation.isPrivate && valuation.estimatedLow ? (
+                    <div style={{ background: '#fff', border: '1px solid #dde3ea', borderRadius: 8, padding: '14px 16px', margin: '12px 0', textAlign: 'left' }}>
+                      <p style={{ margin: '0 0 6px', fontSize: 13, color: '#4a4a4a' }}>
+                        Estimated value for <strong style={{ color: '#c0392b' }}>{valuation.development || formData.postalCode}</strong>:
+                      </p>
+                      <p style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#2c3e50' }}>
+                        {valuation.estimatedLow} – {valuation.estimatedHigh}
+                      </p>
+                      {valuation.transactionCount ? (
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888' }}>
+                          Based on {valuation.transactionCount} recent transactions{valuation.latestMonth ? ` (${valuation.latestMonth})` : ''}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : valuation?.isPrivate ? (
+                    <div style={{ background: '#fff', border: '1px solid #dde3ea', borderRadius: 8, padding: '14px 16px', margin: '12px 0' }}>
+                      <p style={{ margin: 0, fontSize: 13, color: '#4a4a4a' }}>🏙️ Private/Condo property — our consultant will provide a detailed market valuation.</p>
+                    </div>
+                  ) : null}
+                  <p style={{ fontSize: '14px', color: '#4a4a4a', lineHeight: 1.7 }}>
+                    Check your WhatsApp — your personalised property valuation report will arrive in the next 60 seconds.
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#888', marginTop: '12px' }}>
+                    Our consultant will also be in touch shortly.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit}>
+                  <h3 style={{ fontFamily: 'Georgia, serif', fontSize: '17px', fontWeight: 700, color: '#2c3e50', marginBottom: '20px' }}>
+                    Get My Free Property Valuation
+                  </h3>
+
+                  <div style={{ marginBottom: '14px', position: 'relative' }} ref={postalWrapRef}>
+                    <label style={labelStyle}>Property Search</label>
+                    <input
+                      type="text" placeholder="Search by condo name, block or postal code"
+                      value={formData.postalDisplay || formData.postalCode}
+                      autoComplete="off"
+                      onChange={e => {
+                        const raw = e.target.value
+                        // If all digits, treat as postal code; otherwise treat as name search
+                        const isNumeric = /^\d+$/.test(raw)
+                        const val = isNumeric ? raw.replace(/\D/g, '') : raw
+                        setFormData(f => ({ ...f, postalCode: isNumeric ? val : '', postalDisplay: isNumeric ? '' : val }))
+                        setShowSuggestions(true)
+                        if (suggestTimer.current) clearTimeout(suggestTimer.current)
+                        if (val.length >= 3 && !(isNumeric && val.length === 6)) {
+                          setSuggestLoading(true)
+                          suggestTimer.current = setTimeout(async () => {
+                            try {
+                              const res = await fetch(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(val)}&returnGeom=N&getAddrDetails=Y&pageNum=1`)
+                              const data = await res.json()
+                              const results = (data.results || []).slice(0, 6).map((r: {BUILDING?: string, ADDRESS?: string, POSTAL?: string, BLK_NO?: string, ROAD_NAME?: string}) => ({
+                                building: r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : `Blk ${r.BLK_NO} ${r.ROAD_NAME}`,
+                                address: r.ADDRESS || '',
+                                postal: r.POSTAL || ''
+                              })).filter((r: {postal: string}) => r.postal && r.postal.length === 6)
+                              setSuggestions(results)
+                            } catch { setSuggestions([]) }
+                            setSuggestLoading(false)
+                          }, 400)
+                        } else if (val.length === 6) {
+                          setSuggestions([])
+                          setShowSuggestions(false)
+                        } else {
+                          setSuggestions([])
+                          setSuggestLoading(false)
+                        }
+                      }}
+                      onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                      style={inputStyle} required
+                    />
+                    {showSuggestions && (suggestLoading || suggestions.length > 0) && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #d1d5db', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', marginTop: '2px', maxHeight: '240px', overflowY: 'auto' }}>
+                        {suggestLoading ? (
+                          <div style={{ padding: '10px 14px', fontSize: '13px', color: '#9ca3af' }}>Searching...</div>
+                        ) : suggestions.length === 0 ? (
+                          <div style={{ padding: '10px 14px', fontSize: '13px', color: '#9ca3af' }}>No results found</div>
+                        ) : suggestions.map((s, i) => (
+                          <div key={i}
+                            onMouseDown={e => {
+                              e.preventDefault()
+                              setFormData(f => ({ ...f, postalCode: s.postal, postalDisplay: s.address }))
+                              setShowSuggestions(false)
+                              setSuggestions([])
+                            }}
+                            style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: i < suggestions.length - 1 ? '1px solid #f3f4f6' : 'none' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f7f9fc')}
+                            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                          >
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2c3e50' }}>🏡 {s.building}</div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{s.address} · {s.postal}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={labelStyle}>Unit Type</label>
+                      <select value={formData.unitType} onChange={e => setFormData(f => ({ ...f, unitType: e.target.value }))} style={inputStyle} required>
+                        <option value="">Select</option>
+                        <option value="Studio/1BR">Studio / 1BR</option>
+                        <option value="2 Bedroom">2 Bedroom</option>
+                        <option value="3 Bedroom">3 Bedroom</option>
+                        <option value="4 Bedroom">4 Bedroom</option>
+                        <option value="5 Bedroom+">5 Bedroom+</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Floor Level</label>
+                      <select value={formData.floorLevel} onChange={e => setFormData(f => ({ ...f, floorLevel: e.target.value }))} style={inputStyle} required>
+                        <option value="">Select</option>
+                        <option value="Low Floor (1-10)">Low (1–10)</option>
+                        <option value="Mid Floor (11-20)">Mid (11–20)</option>
+                        <option value="High Floor (21+)">High (21+)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={labelStyle}>Name</label>
+                      <input type="text" placeholder="Full name" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} style={inputStyle} required />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Phone</label>
+                      <div style={{ display: 'flex' }}>
+                        <span style={{ ...inputStyle, width: 'auto', padding: '10px 8px', background: '#f0f0f0', borderRight: 'none', borderRadius: '4px 0 0 4px', fontSize: '13px', color: '#888', flexShrink: 0 }}>+65</span>
+                        <input type="tel" placeholder="8 digits" maxLength={8} value={formData.mobile} onChange={e => setFormData(f => ({ ...f, mobile: e.target.value.replace(/\D/g, '') }))} style={{ ...inputStyle, borderRadius: '0 4px 4px 0' }} required />
+                      </div>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '10px 12px', fontSize: '13px', color: '#dc2626', marginBottom: '14px' }}>
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit" disabled={loading}
+                    style={{ width: '100%', padding: '14px', background: loading ? '#999' : '#B22222', color: '#fff', border: 'none', borderRadius: '5px', fontSize: '16px', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', marginTop: '4px' }}
+                  >
+                    {loading ? 'Preparing your report...' : 'Get My Free Property Valuation'}
+                  </button>
+                  <p style={{ fontSize: '12px', color: '#888', marginTop: '10px', textAlign: 'center', lineHeight: 1.5 }}>
+                    Based on recent transactions &amp; market data<br />Takes 60 seconds
+                  </p>
+                </form>
+              )}
+            </div>
           </div>
 
         </div>
-      </div>
-
-      {/* Agency Trust Bar */}
-      <section style={{ background: '#1a1a2e', color: '#fff', padding: '32px 24px', textAlign: 'center' }}>
-        <p style={{ fontSize: 13, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 20 }}>
-          Trusted by Singapore Property Owners
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 48, flexWrap: 'wrap', marginBottom: 16 }}>
-          {['CEA Licensed Consultants', 'PropTech Verified', 'Data-Driven Reports', '5,000+ Valuations Done'].map(t => (
-            <div key={t} style={{ fontSize: 14, color: '#94a3b8', fontWeight: 500 }}>✓ {t}</div>
-          ))}
-        </div>
-        <p style={{ fontSize: 12, color: '#475569', margin: 0 }}>
-          All valuations are based on URA and HDB official transaction data.
-        </p>
       </section>
 
-      {/* Footer */}
-      <footer style={{ background: '#111827', color: '#6b7280', padding: '24px', textAlign: 'center', fontSize: 12 }}>
-        <p style={{ margin: '0 0 8px' }}>
-          © 2025 FreePropertyValuation.sg — An initiative by licensed Singapore property consultants
-        </p>
-        <p style={{ margin: 0 }}>
-          Transaction data sourced from HDB Resale Flat Prices (data.gov.sg) and URA REALIS.
-          Valuations are estimates only and should not be relied upon as formal appraisals.
+      {/* ── TRUST BAR ──────────────────────────────────────── */}
+      <section style={{ borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', padding: '40px 40px', background: '#fafafa' }}>
+        <div style={{ maxWidth: '1140px', margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'Georgia, serif', fontSize: '16px', color: '#4a4a4a', marginBottom: '28px', fontWeight: 600 }}>
+            Access Realtors From Singapore&apos;s Top Agencies
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '48px', flexWrap: 'wrap' }}>
+            {['ERA REAL ESTATE', 'Huttons', 'PropNex', 'OrangeTee'].map(agency => (
+              <span key={agency} style={{ fontWeight: 700, color: '#9ca3af', letterSpacing: '0.5px', textTransform: 'uppercase', fontSize: '13px' }}>
+                {agency}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ─────────────────────────────────────────── */}
+      <footer style={{ padding: '24px 40px', textAlign: 'center' }}>
+        <p style={{ fontSize: '11px', color: '#9ca3af', maxWidth: '800px', margin: '0 auto', lineHeight: 1.7 }}>
+          *Valuation estimates are based on recent market transactions and are indicative only. They do not constitute formal property valuation advice. 
+          This site is operated by SKYS Branch Pte Ltd and is intended for informational purposes only. 
+          By submitting your information you agree to being contacted by our consultants regarding your property enquiry.
         </p>
       </footer>
 
