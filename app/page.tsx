@@ -110,9 +110,7 @@ export default function Home() {
             SG<span style={{ color: gold }}>Home</span>Valuation
           </span>
         </div>
-        <a href="mailto:hello@skysleads.com" style={{ color: navy, textDecoration: 'none', fontWeight: 600, fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', border: `1.5px solid ${navy}`, borderRadius: 6, transition: 'all 0.15s' }}>
-          Contact Us
-        </a>
+
       </nav>
 
       {/* ── HERO ───────────────────────────────────────────── */}
