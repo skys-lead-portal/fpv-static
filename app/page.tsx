@@ -341,15 +341,16 @@ export default function Home() {
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '16px', color: '#4a4a4a', marginBottom: '28px', fontWeight: 600 }}>
             Access Realtors From Singapore&apos;s Top Agencies
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '32px', flexWrap: 'wrap' }}>
             {[
-              { name: 'ERA', color: '#e31837' },
-              { name: 'Huttons', color: '#003087' },
-              { name: 'PropNex', color: '#e8001d' },
-              { name: 'OrangeTee', color: '#f26522' },
-            ].map(({ name, color }) => (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '120px', height: '48px', border: '1px solid #e5e7eb', borderRadius: '6px', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                <span style={{ fontWeight: 800, color, fontSize: '15px', letterSpacing: '0.5px' }}>{name}</span>
+              { src: '/logos/era.png', alt: 'ERA Real Estate' },
+              { src: '/logos/huttons.svg', alt: 'Huttons' },
+              { src: '/logos/propnex.png', alt: 'PropNex' },
+              { src: '/logos/orangetee.svg', alt: 'OrangeTee' },
+            ].map(({ src, alt }) => (
+              <div key={alt} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px 20px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', minWidth: '120px', height: '56px' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={alt} style={{ height: '36px', width: 'auto', objectFit: 'contain', maxWidth: '110px' }} />
               </div>
             ))}
           </div>
