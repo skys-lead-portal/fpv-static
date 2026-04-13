@@ -64,6 +64,12 @@ export async function POST(req: NextRequest) {
           console.error('[Submit] leads table error:', res.status, errText)
         } else {
           console.log('[Submit] Lead saved:', normalizedPhone)
+          // Update last_webhook_at so System Status shows source as active
+          fetch(`${supabaseUrl}/rest/v1/lead_sources?id=eq.${SOURCE_ID}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ last_webhook_at: new Date().toISOString() }),
+          }).catch(() => {})
         }
       } catch (dbErr) {
         console.error('[Submit] DB error:', dbErr)
