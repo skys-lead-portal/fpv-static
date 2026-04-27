@@ -220,8 +220,9 @@ export async function GET(req: NextRequest) {
               const sqftRange = getTypicalSqft(flatType || '')
               const psfLow = percentile(validPsf, 25)
               const psfHigh = percentile(validPsf, 75)
-              low = psfLow * sqftRange.min
-              high = psfHigh * sqftRange.max
+              // Use typical sqft × PSF range for tighter estimate
+              low = psfLow * sqftRange.typical
+              high = psfHigh * sqftRange.typical
             } else {
               // Raw price range for landed (area varies too much for PSF)
               const prices = uraData.map((r: { price: number }) => Number(r.price)).filter((p: number) => p > 0).sort((a: number, b: number) => a - b)
