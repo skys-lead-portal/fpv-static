@@ -26,6 +26,8 @@ type Lead = {
       latestMonth?: string
       isPrivate?: boolean
       propertyType?: string
+      psfLow?: number
+      psfHigh?: number
     }
   }
 }
@@ -362,6 +364,9 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                   <div className="range">{val.estimatedLow} – {val.estimatedHigh}</div>
                   <div style={{ fontSize: 14, color: GOLD, fontWeight: 700, marginTop: 4 }}>Midpoint: {midpoint}</div>
                   <div className="basis">{val.transactionCount} comparable transactions · Data to {val.latestMonth}</div>
+                  {val.psfLow && val.psfHigh && (
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>PSF: S${val.psfLow.toLocaleString()} – S${val.psfHigh.toLocaleString()} psf</div>
+                  )}
                 </div>
                 <div className="grid2">
                   <div className="stat">

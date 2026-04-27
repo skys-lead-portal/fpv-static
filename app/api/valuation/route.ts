@@ -54,6 +54,18 @@ function deriveHDBTown(roadName: string): string | null {
   return null
 }
 
+
+// ── Unit type to typical sqft range for PSF calculation ─────────────────────
+function getTypicalSqft(unitType: string): { min: number; max: number; typical: number } {
+  const u = (unitType || '').toLowerCase()
+  if (u.includes('studio') || u.includes('1br') || u.includes('1 bed')) return { min: 400, max: 650, typical: 500 }
+  if (u.includes('2 bed') || u.includes('2br')) return { min: 600, max: 1000, typical: 800 }
+  if (u.includes('3 bed') || u.includes('3br') || u.includes('3 room')) return { min: 900, max: 1400, typical: 1100 }
+  if (u.includes('4 bed') || u.includes('4br') || u.includes('4 room')) return { min: 1300, max: 2000, typical: 1600 }
+  if (u.includes('5') || u.includes('penthouse')) return { min: 1800, max: 4000, typical: 2500 }
+  return { min: 500, max: 1500, typical: 900 } // default
+}
+
 // ── Format price as "S$380K" or "S$1.25M" ────────────────────────────────────
 function formatPrice(price: number): string {
   const rounded = Math.round(price / 10000) * 10000
@@ -191,12 +203,31 @@ export async function GET(req: NextRequest) {
             }
           }
           if (Array.isArray(uraData) && uraData.length >= 3) {
-            const prices = uraData.map((r: { price: number }) => Number(r.price)).filter(p => p > 0).sort((a, b) => a - b)
-            const low = percentile(prices, 25)
-            const high = percentile(prices, 75)
             const latestDate = uraData[0]?.contract_date || ''
             const tenure = uraData[0]?.tenure || ''
             const district = uraData[0]?.district || ''
+
+            // Use PSF methodology for condo/landed — more accurate than raw price range
+            const validPsf = uraData
+              .filter((r: { price: number; area: number }) => Number(r.area) > 0 && Number(r.price) > 0)
+              .map((r: { price: number; area: number }) => Number(r.price) / (Number(r.area) * 10.764))
+              .filter((psf: number) => psf > 500 && psf < 10000)
+              .sort((a: number, b: number) => a - b)
+
+            let low: number, high: number
+            if (validPsf.length >= 3 && flatType !== 'Landed') {
+              // PSF-based for condo — multiply by typical sqft for unit type
+              const sqftRange = getTypicalSqft(flatType || '')
+              const psfLow = percentile(validPsf, 25)
+              const psfHigh = percentile(validPsf, 75)
+              low = psfLow * sqftRange.min
+              high = psfHigh * sqftRange.max
+            } else {
+              // Raw price range for landed (area varies too much for PSF)
+              const prices = uraData.map((r: { price: number }) => Number(r.price)).filter((p: number) => p > 0).sort((a: number, b: number) => a - b)
+              low = percentile(prices, 25)
+              high = percentile(prices, 75)
+            }
 
             // Get exact project name
             const projRes = await fetch(
@@ -205,6 +236,10 @@ export async function GET(req: NextRequest) {
             )
             const projData = projRes.ok ? await projRes.json() : []
             const projectName = projData[0]?.project || development
+
+            // Also return PSF for display in brief
+            const psfLow = validPsf.length >= 3 ? Math.round(percentile(validPsf, 25)) : null
+            const psfHigh = validPsf.length >= 3 ? Math.round(percentile(validPsf, 75)) : null
 
             return NextResponse.json({
               block, street,
@@ -217,6 +252,8 @@ export async function GET(req: NextRequest) {
               latestMonth: latestDate,
               tenure,
               district,
+              psfLow,
+              psfHigh,
             })
           }
         }
