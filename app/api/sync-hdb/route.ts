@@ -44,18 +44,25 @@ export async function POST(req: NextRequest) {
     const url = `https://data.gov.sg/api/action/datastore_search?resource_id=${RESOURCE_ID}&limit=${pageLimit}&offset=${offset}`
 
     try {
-      const res = await fetch(url, { headers, cache: 'no-store' })
-      const data = await res.json()
+      // Retry up to 3x with 12s delay on rate limit
+      let data: Record<string, unknown> = {}
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch(url, { headers, cache: 'no-store' })
+        data = await res.json() as Record<string, unknown>
+        if ((data as {code?: number}).code !== 24) break
+        // Rate limited — wait and retry
+        await new Promise(r => setTimeout(r, 12000))
+      }
 
-      if (!data.success || !data.result?.records?.length) {
-        if (data.code === 24) {
-          errors.push(`Rate limited at offset ${offset}`)
+      if (!(data as {success?: boolean}).success || !(data as {result?: {records?: unknown[]}}).result?.records?.length) {
+        if ((data as {code?: number}).code === 24) {
+          errors.push(`Rate limited at offset ${offset} after retries`)
           break
         }
         break // end of dataset
       }
 
-      const records = data.result.records
+      const records = (data as {result: {records: Record<string, string>[]}}).result.records
       totalFetched += records.length
 
       // Upsert to Supabase
