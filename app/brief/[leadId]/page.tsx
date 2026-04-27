@@ -54,29 +54,46 @@ type URATransaction = {
   project: string
 }
 
-async function getURAComparables(development: string, street: string, propertyType: string): Promise<URATransaction[]> {
+// Map unit type to approximate sqm range for filtering
+function getAreaFilter(unitType: string): { min: number; max: number } | null {
+  const u = unitType.toLowerCase()
+  if (u.includes('studio') || u.includes('1br') || u.includes('1 bed')) return { min: 30, max: 65 }
+  if (u.includes('2 bed') || u.includes('2br')) return { min: 55, max: 100 }
+  if (u.includes('3 bed') || u.includes('3br')) return { min: 85, max: 145 }
+  if (u.includes('4 bed') || u.includes('4br')) return { min: 120, max: 250 }
+  if (u.includes('5 bed') || u.includes('5br') || u.includes('penthouse')) return { min: 170, max: 600 }
+  return null
+}
+
+async function getURAComparables(development: string, street: string, propertyType: string, unitType?: string): Promise<URATransaction[]> {
+  const areaFilter = unitType ? getAreaFilter(unitType) : null
+
   if (!development || development === 'NIL') {
     // Landed: search by street
     const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
     const landedTypes = 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=10`,
-      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
-    )
+    let url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=10`
+    const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' })
     return res.ok ? await res.json() : []
   }
-  // Condo: search by project name keywords
+
+  // Condo: search by project name keywords, filter by area if unit type provided
   const keywords = development.toUpperCase()
     .replace(/[^A-Z0-9 ]/g, ' ')
     .split(' ')
     .filter((w: string) => w.length > 2)
     .slice(0, 3)
     .join('%')
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=10`,
-    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
-  )
-  return res.ok ? await res.json() : []
+
+  let url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=20`
+  if (areaFilter) {
+    url += `&area=gte.${areaFilter.min}&area=lte.${areaFilter.max}`
+  }
+  const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' })
+  if (!res.ok) return []
+  const data: URATransaction[] = await res.json()
+  // Return top 10 most recent
+  return data.slice(0, 10)
 }
 
 function formatContractDate(d: string): string {
@@ -178,7 +195,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
   const isPrivate = val.isPrivate || meta.property_type === 'Condo' || meta.property_type === 'Landed'
 
   const uraComparables: URATransaction[] = isPrivate
-    ? await getURAComparables(val.development || '', street, meta.property_type || '')
+    ? await getURAComparables(val.development || '', street, meta.property_type || '', meta.unit_type)
     : []
 
   const [comparables, trend] = await Promise.all([
@@ -435,30 +452,6 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
             </div>
           )}
 
-          {/* Call Guide */}
-          <div className="card">
-            <div className="section-title">Call Guide</div>
-            <div className="call-box" style={{ marginBottom: 14 }}>
-              <h4>Opening Line</h4>
-              <p>
-                {val.estimatedLow
-                  ? `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently checked your property valuation online — I've prepared a quick market analysis for your ${flatType} in ${town}. Current market range is ${val.estimatedLow}–${val.estimatedHigh} based on ${val.transactionCount} recent transactions. Do you have 5 minutes?"`
-                  : `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently requested a property valuation — I'd like to share what we found for your area. Do you have 5 minutes?"`
-                }
-              </p>
-            </div>
-            <ul className="talking-points" style={{ paddingLeft: 0, listStyle: 'none' }}>
-              {val.estimatedLow && <li>Market is active — {val.transactionCount} transactions in {town} recently</li>}
-              {trend && trend.pct > 0 && <li>Prices trending up {trend.pct.toFixed(1)}% — good time to explore options</li>}
-              {trend && trend.pct < 0 && <li>Market softening slightly — worth acting sooner rather than later</li>}
-              {leaseWarning && <li>Lease under 60 years — buyer pool narrowing, discuss timing strategy</li>}
-              {floorPremium?.high && floorPremium?.low && <li>Floor premium: high vs low floor gap is {formatPrice(floorPremium.high - floorPremium.low)} — factor into strategy</li>}
-              <li>Ask: Outstanding loan balance? CPF accrued interest aware?</li>
-              <li>Ask: Timeline — actively considering selling in next 12 months?</li>
-              <li>Ask: Already spoken to another agent?</li>
-            </ul>
-          </div>
-
           {/* URA Comparables (Condo/Landed) */}
           {isPrivate && uraComparables.length > 0 && (
             <div className="card">
@@ -493,7 +486,31 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                 </p>
               )}
             </div>
-          )}
+          )}          {/* Call Guide */}
+          <div className="card">
+            <div className="section-title">Call Guide</div>
+            <div className="call-box" style={{ marginBottom: 14 }}>
+              <h4>Opening Line</h4>
+              <p>
+                {val.estimatedLow
+                  ? `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently checked your property valuation online — I've prepared a quick market analysis for your ${flatType} in ${town}. Current market range is ${val.estimatedLow}–${val.estimatedHigh} based on ${val.transactionCount} recent transactions. Do you have 5 minutes?"`
+                  : `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently requested a property valuation — I'd like to share what we found for your area. Do you have 5 minutes?"`
+                }
+              </p>
+            </div>
+            <ul className="talking-points" style={{ paddingLeft: 0, listStyle: 'none' }}>
+              {val.estimatedLow && <li>Market is active — {val.transactionCount} transactions in {town} recently</li>}
+              {trend && trend.pct > 0 && <li>Prices trending up {trend.pct.toFixed(1)}% — good time to explore options</li>}
+              {trend && trend.pct < 0 && <li>Market softening slightly — worth acting sooner rather than later</li>}
+              {leaseWarning && <li>Lease under 60 years — buyer pool narrowing, discuss timing strategy</li>}
+              {floorPremium?.high && floorPremium?.low && <li>Floor premium: high vs low floor gap is {formatPrice(floorPremium.high - floorPremium.low)} — factor into strategy</li>}
+              <li>Ask: Outstanding loan balance? CPF accrued interest aware?</li>
+              <li>Ask: Timeline — actively considering selling in next 12 months?</li>
+              <li>Ask: Already spoken to another agent?</li>
+            </ul>
+          </div>
+
+
 
           <div className="footer">
             <p>SKYS Branch Pte Ltd · Internal use only · Not for distribution</p>
