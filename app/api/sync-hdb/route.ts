@@ -81,13 +81,13 @@ export async function POST(req: NextRequest) {
         synced_at: new Date().toISOString(),
       }))
 
-      const upsertRes = await fetch(`${supabaseUrl}/rest/v1/hdb_transactions`, {
+      const upsertRes = await fetch(`${supabaseUrl}/rest/v1/hdb_transactions?on_conflict=month,block,street_name,flat_type,storey_range,resale_price`, {
         method: 'POST',
         headers: {
           'apikey': supabaseKey,
           'Authorization': `Bearer ${supabaseKey}`,
           'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates,return=minimal',
+          'Prefer': 'resolution=ignore-duplicates,return=minimal',
         },
         body: JSON.stringify(rows),
       })
