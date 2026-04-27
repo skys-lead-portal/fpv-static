@@ -100,7 +100,12 @@ export async function POST(req: NextRequest) {
       try {
         const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`
         const to = `whatsapp:${normalizedPhone}`
-        const devName = (valuation as Record<string,string>)?.development?.trim() || postalCode
+        const valObj = valuation as Record<string,string> | null
+        const devName = (valObj?.development && valObj.development !== 'NIL')
+          ? valObj.development
+          : (valObj?.block && valObj?.street)
+            ? `Blk ${valObj.block} ${valObj.street}`
+            : postalCode
         const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
 
         const twilioRes = await fetch(
