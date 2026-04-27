@@ -136,17 +136,29 @@ export async function POST(req: NextRequest) {
     if (botToken && chatId) {
       try {
         const val = valuation as Record<string, string> | null
+        // Use plain Markdown (not V2) — V2 requires escaping dynamic values which breaks silently
         const valLine = val?.estimatedLow && !val?.isPrivate
-          ? `\n💰 Est\. Value: *${val.estimatedLow} – ${val.estimatedHigh}* \(${val.transactionCount} txns\)`
-          : val?.isPrivate ? `\n💰 Private property \(${propertyType}\) \— consultant to advise`
+          ? `\n💰 Est. Value: *${val.estimatedLow} – ${val.estimatedHigh}* (${val.transactionCount} txns)`
+          : val?.isPrivate ? `\n💰 Private property (${propertyType}) — consultant to advise`
           : ''
-        const briefLink = leadId ? `\n📋 [Agent Brief](https://sghomevaluation\.com/brief/${leadId})` : ''
-        const devName = val?.development || postalCode
-        const text = `🏠 *New FPV Lead*\n👤 ${name.trim()}\n📱 ${normalizedPhone}\n📍 ${devName}\n🏢 ${propertyType || ''} ${unitType} · ${floorLevel}${valLine}${briefLink}`
+        const briefLink = leadId ? `\n📋 [Agent Brief](https://sghomevaluation.com/brief/${leadId})` : ''
+        // Show "Blk X Street" instead of NIL for HDB blocks
+        const devName = (val?.development && val.development !== 'NIL')
+          ? val.development
+          : `Blk ${val?.block || ''} ${val?.street || postalCode}`.trim().replace(/^Blk\s+$/, postalCode)
+        const lines = [
+          `🏠 *New FPV Lead*`,
+          `👤 ${name.trim()}`,
+          `📱 ${normalizedPhone}`,
+          `📍 ${devName}`,
+          `🏢 ${[propertyType, unitType, floorLevel].filter(Boolean).join(' · ')}`,
+          valLine,
+          briefLink,
+        ].filter(Boolean).join('\n')
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'MarkdownV2', disable_web_page_preview: false }),
+          body: JSON.stringify({ chat_id: chatId, text: lines, parse_mode: 'Markdown', disable_web_page_preview: false }),
         })
       } catch (tgErr) {
         console.error('[TG] Notify error:', tgErr)
