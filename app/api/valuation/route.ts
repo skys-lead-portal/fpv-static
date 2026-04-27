@@ -158,7 +158,7 @@ export async function GET(req: NextRequest) {
         let projectKeywords = ''
 
         if (isLanded || !development || development === 'NIL') {
-          // Landed: match by street name
+          // Landed: try street first, fall back to district
           const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
           uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached)&order=contract_date.desc&limit=200`
         } else {
@@ -177,7 +177,19 @@ export async function GET(req: NextRequest) {
         })
 
         if (uraRes.ok) {
-          const uraData = await uraRes.json()
+          let uraData = await uraRes.json()
+          // Landed fallback: if insufficient street data, search by property type + recent date
+          if (Array.isArray(uraData) && uraData.length < 3 && (isLanded || !development || development === 'NIL')) {
+            const landedTypes = 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
+            const fallbackRes = await fetch(
+              `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&property_type=in.(${landedTypes})&order=contract_date.desc&limit=200`,
+              { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
+            )
+            if (fallbackRes.ok) {
+              const fallbackData = await fallbackRes.json()
+              if (Array.isArray(fallbackData) && fallbackData.length >= 3) uraData = fallbackData
+            }
+          }
           if (Array.isArray(uraData) && uraData.length >= 3) {
             const prices = uraData.map((r: { price: number }) => Number(r.price)).filter(p => p > 0).sort((a, b) => a - b)
             const low = percentile(prices, 25)
