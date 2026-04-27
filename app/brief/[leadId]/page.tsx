@@ -339,13 +339,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
           {/* Valuation */}
           <div className="card">
             <div className="section-title">Valuation Estimate</div>
-            {isPrivate ? (
-              <div className="stat">
-                <label>Property Type</label>
-                <span style={{ fontSize: 16 }}>{meta.property_type} — Live Valuation Lookup Needed</span>
-                <sub>Lead submitted before valuation was fetched — check <a href={`https://sghomevaluation.com/api/valuation?postal=${meta.postal_code}&property_type=${meta.property_type}`} target="_blank" rel="noopener noreferrer" style={{color: GOLD}}>valuation API</a> for estimate</sub>
-              </div>
-            ) : val.estimatedLow ? (
+            {val.estimatedLow ? (
               <>
                 <div className="val-range" style={{ marginBottom: 14 }}>
                   <div className="range">{val.estimatedLow} – {val.estimatedHigh}</div>
@@ -376,7 +370,11 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
             ) : (
               <div className="stat">
                 <label>Status</label>
-                <span style={{ fontSize: 14 }}>Insufficient data — manual valuation needed</span>
+                <span style={{ fontSize: 14 }}>
+                  {isPrivate ? `${meta.property_type} — ` : ''} No valuation data — check{' '}
+                  <a href={`https://sghomevaluation.com/api/valuation?postal=${meta.postal_code}&property_type=${meta.property_type}`}
+                     target="_blank" rel="noopener noreferrer" style={{color: GOLD}}>valuation API</a>
+                </span>
               </div>
             )}
           </div>
