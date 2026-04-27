@@ -98,6 +98,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const postal = searchParams.get('postal')?.trim()
   const flatType = searchParams.get('flat_type')?.trim()?.toUpperCase()
+  const propertyType = searchParams.get('property_type')?.trim() || ''
 
   if (!postal || !/^\d{6}$/.test(postal)) {
     return NextResponse.json({ error: 'Invalid postal code' }, { status: 400 })
@@ -122,9 +123,11 @@ export async function GET(req: NextRequest) {
     const development = (r.BUILDING || '').toString().trim()
 
     // ── Private property check ───────────────────────────────────────────────
-    if (isLikelyPrivate(block, development)) {
+    const isPrivateByType = propertyType === 'Condo' || propertyType === 'Landed'
+    if (isPrivateByType || isLikelyPrivate(block, development)) {
       return NextResponse.json({
         block, street, development,
+        propertyType: propertyType || 'Private',
         isPrivate: true,
         message: 'Our consultant will provide a detailed valuation',
       })

@@ -26,7 +26,7 @@ async function supabaseFetch(url: string, key: string, body: Record<string, unkn
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { postalCode, unitType, floorLevel, name, mobile, valuation } = body
+    const { postalCode, propertyType, unitType, floorLevel, name, mobile, valuation } = body
 
     // ── Validate ─────────────────────────────────────────────────────────────
     if (!postalCode || !unitType || !floorLevel || !name || !mobile) {
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       lead_score_reason: 'FPV form submission',
       metadata: {
         postal_code: postalCode,
+        property_type: propertyType || 'Unknown',
         unit_type: unitType,
         floor_level: floorLevel,
         source: 'fpv',

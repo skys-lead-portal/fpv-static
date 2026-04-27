@@ -6,6 +6,7 @@ export default function Home() {
   const [formData, setFormData] = useState({
     postalCode: '',
     postalDisplay: '',
+    propertyType: '',
     unitType: '',
     floorLevel: '',
     name: '',
@@ -31,8 +32,9 @@ export default function Home() {
     e.preventDefault()
     setError('')
     if (!formData.postalCode || formData.postalCode.length !== 6) { setError('Please select your property from the dropdown suggestions.'); return }
+    if (!formData.propertyType) { setError('Please select a property type.'); return }
     if (!formData.unitType) { setError('Please select a unit type.'); return }
-    if (!formData.floorLevel) { setError('Please select a floor level.'); return }
+    if (!formData.floorLevel && formData.propertyType !== 'Landed') { setError('Please select a floor level.'); return }
     if (!formData.name.trim()) { setError('Please enter your name.'); return }
     if (!formData.mobile || formData.mobile.length !== 8) { setError('Please enter a valid 8-digit mobile number.'); return }
     if (!consent) { setError('Please read and agree to the Privacy Policy to continue.'); return }
@@ -42,7 +44,7 @@ export default function Home() {
       const res = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, propertyType: 'Auto-detect' }),
+        body: JSON.stringify({ ...formData }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
@@ -302,26 +304,77 @@ export default function Home() {
                     )}
                   </div>
 
+                  {/* Property Type */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={labelStyle}>Property Type</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                      {['HDB', 'Condo', 'Landed'].map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setFormData(f => ({ ...f, propertyType: type, unitType: '' }))}
+                          style={{
+                            padding: '10px 8px',
+                            borderRadius: '6px',
+                            border: formData.propertyType === type ? `2px solid ${navy}` : '1.5px solid #D1D9E6',
+                            background: formData.propertyType === type ? navy : '#fff',
+                            color: formData.propertyType === type ? '#fff' : '#4A5568',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          {type === 'HDB' ? '🏢 HDB' : type === 'Condo' ? '🏙️ Condo' : '🏡 Landed'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                     <div>
-                      <label style={labelStyle}>Unit Type</label>
-                      <select value={formData.unitType} onChange={e => setFormData(f => ({ ...f, unitType: e.target.value }))} style={inputStyle} required>
+                      <label style={labelStyle}>{formData.propertyType === 'HDB' ? 'Flat Type' : 'Unit Size'}</label>
+                      <select
+                        value={formData.unitType}
+                        onChange={e => setFormData(f => ({ ...f, unitType: e.target.value }))}
+                        style={inputStyle}
+                        required
+                      >
                         <option value="">Select</option>
-                        <option value="Studio/1BR">Studio / 1BR</option>
-                        <option value="2 Bedroom">2 Bedroom</option>
-                        <option value="3 Bedroom">3 Bedroom</option>
-                        <option value="4 Bedroom">4 Bedroom</option>
-                        <option value="5 Bedroom+">5 Bedroom+</option>
+                        {formData.propertyType === 'HDB' ? (
+                          <>
+                            <option value="2 ROOM">2-Room</option>
+                            <option value="3 ROOM">3-Room</option>
+                            <option value="4 ROOM">4-Room</option>
+                            <option value="5 ROOM">5-Room</option>
+                            <option value="EXECUTIVE">Executive</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="Studio/1BR">Studio / 1BR</option>
+                            <option value="2 Bedroom">2 Bedroom</option>
+                            <option value="3 Bedroom">3 Bedroom</option>
+                            <option value="4 Bedroom">4 Bedroom</option>
+                            <option value="5 Bedroom+">5 Bedroom+</option>
+                          </>
+                        )}
                       </select>
                     </div>
                     <div>
                       <label style={labelStyle}>Floor Level</label>
-                      <select value={formData.floorLevel} onChange={e => setFormData(f => ({ ...f, floorLevel: e.target.value }))} style={inputStyle} required>
-                        <option value="">Select</option>
-                        <option value="Low Floor (1-10)">Low (1–10)</option>
-                        <option value="Mid Floor (11-20)">Mid (11–20)</option>
-                        <option value="High Floor (21+)">High (21+)</option>
-                      </select>
+                      {formData.propertyType === 'Landed' ? (
+                        <div style={{ ...inputStyle, background: '#F8FAFD', color: '#9CA3AF', display: 'flex', alignItems: 'center' }}>
+                          N/A (Landed)
+                        </div>
+                      ) : (
+                        <select value={formData.floorLevel} onChange={e => setFormData(f => ({ ...f, floorLevel: e.target.value }))} style={inputStyle} required={formData.propertyType !== 'Landed'}>
+                          <option value="">Select</option>
+                          <option value="Low Floor (1-10)">Low (1–10)</option>
+                          <option value="Mid Floor (11-20)">Mid (11–20)</option>
+                          <option value="High Floor (21+)">High (21+)</option>
+                        </select>
+                      )}
                     </div>
                   </div>
 
