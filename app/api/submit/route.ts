@@ -57,15 +57,26 @@ export async function POST(req: NextRequest) {
       },
     }
 
+    let leadId: string | null = null
     if (supabaseUrl && supabaseKey) {
       try {
-        const res = await supabaseFetch(supabaseUrl, supabaseKey, leadRecord)
+        const res = await fetch(`${supabaseUrl}/rest/v1/leads`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(leadRecord),
+        })
         if (!res.ok) {
           const errText = await res.text()
           console.error('[Submit] leads table error:', res.status, errText)
         } else {
-          console.log('[Submit] Lead saved:', normalizedPhone)
-          // Update last_webhook_at so System Status shows source as active
+          const rows = await res.json()
+          leadId = rows?.[0]?.id || null
+          console.log('[Submit] Lead saved:', normalizedPhone, 'id:', leadId)
           fetch(`${supabaseUrl}/rest/v1/lead_sources?id=eq.${SOURCE_ID}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Prefer': 'return=minimal' },
@@ -74,7 +85,6 @@ export async function POST(req: NextRequest) {
         }
       } catch (dbErr) {
         console.error('[Submit] DB error:', dbErr)
-        // Still continue to send WA — don't block user
       }
     } else {
       console.error('[Submit] Missing Supabase env vars')
@@ -125,19 +135,25 @@ export async function POST(req: NextRequest) {
     const chatId = process.env.TELEGRAM_FPV_GROUP_ID
     if (botToken && chatId) {
       try {
-        const text = `🏠 *New FPV Lead*\n👤 ${name.trim()}\n📱 ${normalizedPhone}\n📍 Postal: ${postalCode}\n🏢 ${unitType} · ${floorLevel}\n🔗 via fpv-static.vercel.app`
+        const val = valuation as Record<string, string> | null
+        const valLine = val?.estimatedLow && !val?.isPrivate
+          ? `\n💰 Est\. Value: *${val.estimatedLow} – ${val.estimatedHigh}* \(${val.transactionCount} txns\)`
+          : val?.isPrivate ? `\n💰 Private property \(${propertyType}\) \— consultant to advise`
+          : ''
+        const briefLink = leadId ? `\n📋 [Agent Brief](https://sghomevaluation\.com/brief/${leadId})` : ''
+        const devName = val?.development || postalCode
+        const text = `🏠 *New FPV Lead*\n👤 ${name.trim()}\n📱 ${normalizedPhone}\n📍 ${devName}\n🏢 ${propertyType || ''} ${unitType} · ${floorLevel}${valLine}${briefLink}`
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown', disable_web_page_preview: true }),
+          body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'MarkdownV2', disable_web_page_preview: false }),
         })
       } catch (tgErr) {
         console.error('[TG] Notify error:', tgErr)
       }
     }
 
-    // Always return success to user — backend errors are internal
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, leadId })
 
   } catch (e) {
     console.error('[Submit] Unexpected error:', e)

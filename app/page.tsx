@@ -41,10 +41,20 @@ export default function Home() {
 
     setLoading(true)
     try {
+      // Fetch valuation first so we can include it in the lead record
+      let valuation = null
+      if (formData.propertyType === 'HDB' && formData.postalCode) {
+        try {
+          const flatParam = formData.unitType ? `&flat_type=${encodeURIComponent(formData.unitType)}` : ''
+          const vRes = await fetch(`/api/valuation?postal=${formData.postalCode}&property_type=${formData.propertyType}${flatParam}`)
+          if (vRes.ok) valuation = await vRes.json()
+        } catch { /* non-blocking */ }
+      }
+
       const res = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData }),
+        body: JSON.stringify({ ...formData, valuation }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
