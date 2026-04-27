@@ -132,7 +132,7 @@ async function querySupabase(
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const postal = searchParams.get('postal')?.trim()
-  const flatType = searchParams.get('flat_type')?.trim()?.toUpperCase()
+  const flatType = searchParams.get('flat_type')?.trim() || ''
   const propertyType = searchParams.get('property_type')?.trim() || ''
 
   if (!postal || !/^\d{6}$/.test(postal)) {
@@ -304,13 +304,13 @@ export async function GET(req: NextRequest) {
         block,
         street_name: street.replace(/'/g, ''),
       }
-      if (flatType) blockFilters.flat_type = flatType
+      if (flatType) blockFilters.flat_type = flatType.toUpperCase()
       allRecords = await querySupabase(supabaseUrl, supabaseKey, blockFilters, 200)
 
       // Town-level fallback if not enough block data
       if (allRecords.length < 10 && town) {
         const townFilters: Record<string, string> = { town }
-        if (flatType) townFilters.flat_type = flatType
+        if (flatType) townFilters.flat_type = flatType.toUpperCase()
         let townRecords = await querySupabase(supabaseUrl, supabaseKey, townFilters, 500)
 
         // If still not enough, try without flat_type
