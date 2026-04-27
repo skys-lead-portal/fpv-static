@@ -182,7 +182,8 @@ export async function GET(req: NextRequest) {
           const landedTypes = (flatType && landedSubTypeMap[flatType])
             ? landedSubTypeMap[flatType]
             : 'Terrace,Semi-detached,Detached,Strata%20Terrace,Strata%20Semi-detached,Strata%20Detached'
-          uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=200`
+          // Note: use encodeURI (not encodeURIComponent) so %20 passes through correctly
+          uraUrl = encodeURI(`${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=200`)
         } else {
           // Condo/Apartment: match by project name keywords
           projectKeywords = development.toUpperCase()
