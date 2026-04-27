@@ -110,18 +110,21 @@ async function fetchHDBRecords(
       .sort((a, b) => b.month.localeCompare(a.month))
 
   if (recentOnly) {
-    const countRes = await fetch(`${base}&filters=${filtersParam}&limit=1`, { headers })
-    if (!countRes.ok) return []
-    const countData = await countRes.json()
-    if (!countData.success) return []
-    const total: number = countData.result?.total || 0
-    if (total < 3) return []
-    const offset = Math.max(0, total - 500)
-    const res = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, next: { revalidate: 3600 } })
-    if (!res.ok) return []
-    const data = await res.json()
-    if (!data.success || !data.result?.records) return []
-    return parseRecs(data.result.records)
+    // For town-level fallback, dataset has ~230k records total.
+    // The dataset grows by ~3k/month, so offset ~225000 gets us ~last 6 months.
+    // We try multiple high offsets and pick the freshest results.
+    const offsets = [229000, 226000, 220000]
+    let bestRecs: { price: number; month: string }[] = []
+    for (const offset of offsets) {
+      const res = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, next: { revalidate: 3600 } })
+      if (!res.ok) continue
+      const data = await res.json()
+      if (!data.success || !data.result?.records?.length) continue
+      const recs = parseRecs(data.result.records)
+      if (recs.length > bestRecs.length) bestRecs = recs
+      if (bestRecs.length >= 20) break
+    }
+    return bestRecs
   }
 
   // Block-level: fetch head + tail if large dataset
