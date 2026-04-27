@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
           ? val.development
           : `Blk ${val?.block || ''} ${val?.street || postalCode}`.trim().replace(/^Blk\s+$/, postalCode)
         const lines = [
-          `🏠 *New FPV Lead*`,
+          `🏠 *New SGHomeValuation Lead*`,
           `👤 ${name.trim()}`,
           `📱 ${normalizedPhone}`,
           `📍 ${devName}`,
