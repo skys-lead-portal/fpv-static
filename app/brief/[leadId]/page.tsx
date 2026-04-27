@@ -87,7 +87,8 @@ async function getURAComparables(development: string, street: string, propertyTy
     return res.ok ? await res.json() : []
   }
 
-  // Condo: search by project name keywords, filter by area if unit type provided
+  // Condo: show most recent transactions from same project (all sizes)
+  // We show PSF in the table so agent can extrapolate to their specific unit
   const keywords = development.toUpperCase()
     .replace(/[^A-Z0-9 ]/g, ' ')
     .split(' ')
@@ -95,15 +96,10 @@ async function getURAComparables(development: string, street: string, propertyTy
     .slice(0, 3)
     .join('%')
 
-  let url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=20`
-  if (areaFilter) {
-    url += `&area=gte.${areaFilter.min}&area=lte.${areaFilter.max}`
-  }
+  const url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=10`
   const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' })
   if (!res.ok) return []
-  const data: URATransaction[] = await res.json()
-  // Return top 10 most recent
-  return data.slice(0, 10)
+  return await res.json()
 }
 
 function formatContractDate(d: string): string {
@@ -475,24 +471,26 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Project</th>
                     <th>Floor</th>
                     <th>Area</th>
-                    <th>Type</th>
                     <th>Price</th>
+                    <th>PSF</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {uraComparables.map((t, i) => (
-                    <tr key={i}>
-                      <td>{formatContractDate(t.contract_date)}</td>
-                      <td style={{ fontSize: 11 }}>{t.project || '—'}</td>
-                      <td>{t.floor_range || '—'}</td>
-                      <td>{t.area ? `${t.area} sqm` : '—'}</td>
-                      <td style={{ fontSize: 11 }}>{t.property_type}</td>
-                      <td className="price">S${Number(t.price).toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {uraComparables.map((t, i) => {
+                    const sqft = t.area ? Math.round(Number(t.area) * 10.764) : 0
+                    const psf = sqft > 0 ? Math.round(Number(t.price) / sqft) : 0
+                    return (
+                      <tr key={i}>
+                        <td>{formatContractDate(t.contract_date)}</td>
+                        <td>{t.floor_range || '—'}</td>
+                        <td style={{ fontSize: 11 }}>{t.area ? `${t.area}sqm (${sqft}sf)` : '—'}</td>
+                        <td className="price">S${Number(t.price).toLocaleString()}</td>
+                        <td style={{ color: '#6B7280', fontSize: 12 }}>{psf > 0 ? `S$${psf.toLocaleString()}` : '—'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
               {uraComparables[0]?.tenure && (
