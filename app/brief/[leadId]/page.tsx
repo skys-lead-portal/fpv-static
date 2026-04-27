@@ -253,8 +253,12 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
             <div className="grid2" style={{ marginBottom: 12 }}>
               <div className="stat">
                 <label>Address</label>
-                <span style={{ fontSize: 14 }}>{val.development || `Blk ${block} ${street}`}</span>
-                <sub>Postal: {meta.postal_code} · {town}</sub>
+                <span style={{ fontSize: 14 }}>
+                  {val.development && val.development !== 'NIL'
+                    ? val.development
+                    : block ? `Blk ${block} ${street}` : street || `Postal ${meta.postal_code}`}
+                </span>
+                <sub>Postal: {meta.postal_code}{town ? ` · ${town}` : ''}</sub>
               </div>
               <div className="stat">
                 <label>Unit</label>
@@ -289,8 +293,8 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
             {isPrivate ? (
               <div className="stat">
                 <label>Property Type</label>
-                <span style={{ fontSize: 16 }}>{meta.property_type} — Consultant Valuation Required</span>
-                <sub>No automated estimate available for private property</sub>
+                <span style={{ fontSize: 16 }}>{meta.property_type} — Live Valuation Lookup Needed</span>
+                <sub>Lead submitted before valuation was fetched — check <a href={`https://sghomevaluation.com/api/valuation?postal=${meta.postal_code}&property_type=${meta.property_type}`} target="_blank" rel="noopener noreferrer" style={{color: GOLD}}>valuation API</a> for estimate</sub>
               </div>
             ) : val.estimatedLow ? (
               <>
