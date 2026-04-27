@@ -9,8 +9,8 @@ export async function GET() {
 
   // Step 1: Generate token
   const tokenRes = await fetch(
-    `https://eservice.ura.gov.sg/API/RPT/ApplicationMgt/GenerateToken?accesskey=${accessKey}`,
-    { cache: 'no-store' }
+    `https://eservice.ura.gov.sg/uraDataService/insertNewToken/v1`,
+    { headers: { 'AccessKey': accessKey }, cache: 'no-store' }
   )
   const tokenText = await tokenRes.text()
   let tokenData: Record<string, unknown> = {}
@@ -28,11 +28,11 @@ export async function GET() {
 
   // Step 2: Fetch one batch of private residential transactions
   const txnRes = await fetch(
-    'https://eservice.ura.gov.sg/API/RPT/PMI/GetPrivateResiTransaction?batch=1',
+    'https://eservice.ura.gov.sg/uraDataService/invokeUraDS/v1?service=PMI_Resi_Transaction&batch=1',
     {
       headers: {
-        AccessKey: accessKey,
-        Token: token,
+        'AccessKey': accessKey,
+        'Token': token,
       },
       cache: 'no-store',
     }
