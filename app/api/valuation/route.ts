@@ -92,26 +92,60 @@ function isLikelyPrivate(block: string, development: string): boolean {
 }
 
 // ── Fetch HDB resale records from data.gov.sg ────────────────────────────────
+// CKAN paginates from offset 0 (oldest first). For recent data we fetch the tail.
 async function fetchHDBRecords(
   resourceId: string,
   filters: Record<string, string>,
   apiKey?: string,
+  recentOnly = false,
 ): Promise<{ price: number; month: string }[]> {
-  // data.gov.sg v2 key in Authorization header lifts rate limits
   const headers: HeadersInit = apiKey ? { 'Authorization': apiKey } : {}
   const filtersParam = encodeURIComponent(JSON.stringify(filters))
-  // Note: sort param doesn't work with filters on CKAN — sort client-side instead
-  const url = `https://data.gov.sg/api/action/datastore_search?resource_id=${resourceId}&filters=${filtersParam}&limit=500`
+  const base = `https://data.gov.sg/api/action/datastore_search?resource_id=${resourceId}`
 
-  const res = await fetch(url, { headers, next: { revalidate: 3600 } })
+  const parseRecs = (records: Record<string, string>[]) =>
+    records
+      .map(r => ({ price: parseFloat(r.resale_price), month: r.month || '' }))
+      .filter(r => !isNaN(r.price))
+      .sort((a, b) => b.month.localeCompare(a.month))
+
+  if (recentOnly) {
+    const countRes = await fetch(`${base}&filters=${filtersParam}&limit=1`, { headers })
+    if (!countRes.ok) return []
+    const countData = await countRes.json()
+    if (!countData.success) return []
+    const total: number = countData.result?.total || 0
+    if (total < 3) return []
+    const offset = Math.max(0, total - 500)
+    const res = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, next: { revalidate: 3600 } })
+    if (!res.ok) return []
+    const data = await res.json()
+    if (!data.success || !data.result?.records) return []
+    return parseRecs(data.result.records)
+  }
+
+  // Block-level: fetch head + tail if large dataset
+  const res = await fetch(`${base}&filters=${filtersParam}&limit=500`, { headers, next: { revalidate: 3600 } })
   if (!res.ok) return []
   const data = await res.json()
   if (!data.success || !data.result?.records) return []
 
-  return data.result.records
-    .map((r: Record<string, string>) => ({ price: parseFloat(r.resale_price), month: r.month || '' }))
-    .filter((r: { price: number; month: string }) => !isNaN(r.price))
-    .sort((a: { price: number; month: string }, b: { price: number; month: string }) => b.month.localeCompare(a.month))
+  const head = parseRecs(data.result.records)
+  const total: number = data.result?.total || 0
+
+  if (total > 500) {
+    const offset = Math.max(0, total - 500)
+    const tailRes = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, next: { revalidate: 3600 } })
+    if (tailRes.ok) {
+      const tailData = await tailRes.json()
+      if (tailData.success && tailData.result?.records) {
+        return [...head, ...parseRecs(tailData.result.records)]
+          .sort((a, b) => b.month.localeCompare(a.month))
+      }
+    }
+  }
+
+  return head
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -178,7 +212,7 @@ export async function GET(req: NextRequest) {
       for (const rid of RESOURCE_IDS.slice(0, 1)) {
         const filters: Record<string, string> = { town }
         if (flatType) filters.flat_type = flatType
-        const records = await fetchHDBRecords(rid, filters, apiKey)
+        const records = await fetchHDBRecords(rid, filters, apiKey, true)  // recentOnly
         if (records.length > allRecords.length) allRecords = records
       }
     }
