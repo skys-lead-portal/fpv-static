@@ -58,7 +58,7 @@ type URATransaction = {
   project: string
 }
 
-// Map unit type to approximate sqm range for filtering
+// Map unit type to approximate sqm range for PSF area filtering (internal use)
 function getAreaFilter(unitType: string): { min: number; max: number } | null {
   const u = unitType.toLowerCase()
   if (u.includes('studio') || u.includes('1br') || u.includes('1 bed')) return { min: 30, max: 65 }
@@ -307,8 +307,8 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
     ? (() => {
         const valid = comparables.filter(t => parseFloat(t.floor_area_sqm) > 0)
         if (!valid.length) return null
-        const avgPsm = valid.reduce((s, t) => s + Number(t.resale_price) / parseFloat(t.floor_area_sqm), 0) / valid.length
-        return `S$${Math.round(avgPsm).toLocaleString()}/sqm`
+        const avgPsf = valid.reduce((s, t) => s + Number(t.resale_price) / (parseFloat(t.floor_area_sqm) * 10.764), 0) / valid.length
+        return `S$${Math.round(avgPsf).toLocaleString()} psf`
       })()
     : null
 
@@ -427,11 +427,11 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                 </div>
                 <div className="stat">
                   <label>Floor Area</label>
-                  <span style={{ fontSize: 16 }}>{comparables[0]?.floor_area_sqm ? `${comparables[0].floor_area_sqm} sqm` : '—'}</span>
+                  <span style={{ fontSize: 16 }}>{comparables[0]?.floor_area_sqm ? `${Math.round(parseFloat(comparables[0].floor_area_sqm) * 10.764).toLocaleString()} sqft` : '—'}</span>
                   <sub>{comparables[0]?.flat_model || ''}</sub>
                 </div>
                 <div className="stat">
-                  <label>Avg Price/sqm</label>
+                  <label>Avg PSF</label>
                   <span style={{ fontSize: 16 }}>{psm || '—'}</span>
                   <sub>area benchmark</sub>
                 </div>
@@ -543,7 +543,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                     <th>Date</th>
                     <th>Block</th>
                     <th>Floor</th>
-                    <th>Area</th>
+                    <th>Area (sqft)</th>
                     <th>Model</th>
                     <th>Price</th>
                   </tr>
@@ -554,7 +554,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                       <td>{t.month}</td>
                       <td>Blk {t.block}</td>
                       <td>{t.storey_range}</td>
-                      <td>{t.floor_area_sqm} sqm</td>
+                      <td>{t.floor_area_sqm ? `${Math.round(parseFloat(t.floor_area_sqm) * 10.764).toLocaleString()} sqft` : '—'}</td>
                       <td>{t.flat_model}</td>
                       <td className="price">S${Number(t.resale_price).toLocaleString()}</td>
                     </tr>
@@ -598,7 +598,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                   <tr>
                     <th>Date</th>
                     <th>Floor</th>
-                    <th>Area</th>
+                    <th>Area (sqft)</th>
                     <th>Price</th>
                     <th>PSF</th>
                   </tr>
@@ -611,7 +611,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                       <tr key={i}>
                         <td>{formatContractDate(t.contract_date)}</td>
                         <td>{t.floor_range || '—'}</td>
-                        <td style={{ fontSize: 11 }}>{t.area ? `${t.area}sqm (${sqft}sf)` : '—'}</td>
+                        <td style={{ fontSize: 11 }}>{t.area ? `${sqft.toLocaleString()} sqft` : '—'}</td>
                         <td className="price">S${Number(t.price).toLocaleString()}</td>
                         <td style={{ color: '#6B7280', fontSize: 12 }}>{psf > 0 ? `S$${psf.toLocaleString()}` : '—'}</td>
                       </tr>
