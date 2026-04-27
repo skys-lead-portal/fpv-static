@@ -205,21 +205,26 @@ async function getURATrend(development: string, street: string, isLanded: boolea
   let url = ''
   if (isLanded) {
     const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
-    url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price&street=ilike.%25${streetEncoded}%25&property_type=in.(Terrace,Semi-detached,Detached)&order=contract_date.desc&limit=100`
+    url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area&street=ilike.%25${streetEncoded}%25&property_type=in.(Terrace,Semi-detached,Detached)&order=contract_date.desc&limit=100`
   } else {
     const keywords = development.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(' ').filter((w: string) => w.length > 2).slice(0, 3).join('%')
-    url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=100`
+    url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=100`
   }
   const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' })
   if (!res.ok) return null
   const rows: { contract_date: string; price: number }[] = await res.json()
   if (rows.length < 6) return null
-  const sorted = rows.sort((a, b) => b.contract_date.localeCompare(a.contract_date))
-  const half = Math.floor(sorted.length / 2)
-  const recent = sorted.slice(0, half)
-  const older = sorted.slice(half)
-  const avgRecent = recent.reduce((s, r) => s + Number(r.price), 0) / recent.length
-  const avgOlder = older.reduce((s, r) => s + Number(r.price), 0) / older.length
+  // Use PSF for trend to normalize across different unit sizes
+  const withPsf = rows
+    .filter(r => Number((r as {price: number; contract_date: string; area?: number}).area ?? 1) > 0)
+    .map(r => ({ ...r, psf: Number(r.price) / (Number((r as {price: number; contract_date: string; area?: number}).area ?? 1) * 10.764) }))
+    .sort((a, b) => b.contract_date.localeCompare(a.contract_date))
+  const half = Math.floor(withPsf.length / 2)
+  if (half < 3) return null
+  const recent = withPsf.slice(0, half)
+  const older = withPsf.slice(half)
+  const avgRecent = recent.reduce((s, r) => s + r.psf, 0) / recent.length
+  const avgOlder = older.reduce((s, r) => s + r.psf, 0) / older.length
   const pct = ((avgRecent - avgOlder) / avgOlder) * 100
   return { pct, recent: avgRecent, older: avgOlder }
 }
@@ -229,13 +234,15 @@ function getURAFloorPremium(txns: URATransaction[]): { low: number | null; mid: 
   const bands: Record<string, number[]> = { low: [], mid: [], high: [] }
   for (const t of txns) {
     const range = t.floor_range || ''
+    if (!range || range === '-') continue // landed — no floor
     const lo = parseInt(range.split('-')[0]) || 0
-    if (lo === 0 || range === '-') continue // landed — no floor
-    if (lo <= 6) bands.low.push(Number(t.price))
-    else if (lo <= 15) bands.mid.push(Number(t.price))
+    if (lo === 0) continue
+    // Condo-friendly bands: low ≤10, mid 11-25, high 26+
+    if (lo <= 10) bands.low.push(Number(t.price))
+    else if (lo <= 25) bands.mid.push(Number(t.price))
     else bands.high.push(Number(t.price))
   }
-  const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+  const avg = (arr: number[]) => arr.length >= 2 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null
   return { low: avg(bands.low), mid: avg(bands.mid), high: avg(bands.high) }
 }
 
@@ -570,9 +577,9 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
               <div className="section-title">Floor Level Premium</div>
               <div className="floor-band">
                 {[
-                  { label: 'Low (01–06)', val: uraFloorPremium.low, key: 'low' },
-                  { label: 'Mid (07–15)', val: uraFloorPremium.mid, key: 'mid' },
-                  { label: 'High (16+)', val: uraFloorPremium.high, key: 'high' },
+                  { label: 'Low (01–10)', val: uraFloorPremium.low, key: 'low' },
+                  { label: 'Mid (11–25)', val: uraFloorPremium.mid, key: 'mid' },
+                  { label: 'High (26+)', val: uraFloorPremium.high, key: 'high' },
                 ].map(({ label, val: v, key }) => {
                   const floorStr = (meta.floor_level || '').toLowerCase()
                   const isActive = (key === 'low' && floorStr.includes('low')) ||
