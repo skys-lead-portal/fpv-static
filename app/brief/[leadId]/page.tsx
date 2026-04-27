@@ -140,6 +140,25 @@ async function getComparables(town: string, flatType: string, block: string, str
   return townRes.ok ? await townRes.json() : blockData
 }
 
+async function getHDBFloorPremium(town: string, flatType: string): Promise<{ low: number | null; mid: number | null; high: number | null } | null> {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/hdb_transactions?town=eq.${encodeURIComponent(town)}&flat_type=eq.${encodeURIComponent(flatType)}&order=month.desc&limit=500&select=storey_range,resale_price`,
+    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
+  )
+  if (!res.ok) return null
+  const rows: { storey_range: string; resale_price: number }[] = await res.json()
+  if (rows.length < 10) return null
+  const bands: Record<string, number[]> = { low: [], mid: [], high: [] }
+  for (const r of rows) {
+    const lo = parseInt((r.storey_range || '').split(' ')[0]) || 0
+    if (lo <= 6) bands.low.push(Number(r.resale_price))
+    else if (lo <= 15) bands.mid.push(Number(r.resale_price))
+    else bands.high.push(Number(r.resale_price))
+  }
+  const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null
+  return { low: avg(bands.low), mid: avg(bands.mid), high: avg(bands.high) }
+}
+
 async function getPriceTrend(town: string, flatType: string): Promise<{ recent: number; older: number; pct: number } | null> {
   // Get avg price last 3 months vs prior 3 months
   const res = await fetch(
@@ -243,14 +262,15 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
 
   const isLandedType = meta.property_type === 'Landed'
 
-  const [uraComparables, uraTrend, comparables, trend] = await Promise.all([
+  const [uraComparables, uraTrend, comparables, trend, hdbFloorPremiumData] = await Promise.all([
     isPrivate ? getURAComparables(val.development || '', street, meta.property_type || '', meta.unit_type) : Promise.resolve([]),
     isPrivate ? getURATrend(val.development || '', street, isLandedType) : Promise.resolve(null),
     isPrivate ? Promise.resolve([]) : getComparables(town, flatType, block, street),
     isPrivate ? Promise.resolve(null) : getPriceTrend(town, flatType),
+    !isPrivate && town && flatType ? getHDBFloorPremium(town, flatType) : Promise.resolve(null),
   ])
 
-  const floorPremium = comparables.length >= 5 ? getFloorPremium(comparables) : null
+  const floorPremium = hdbFloorPremiumData || (comparables.length >= 5 ? getFloorPremium(comparables) : null)
   const uraFloorPremium = uraComparables.length >= 5 ? getURAFloorPremium(uraComparables) : null
 
   // URA PSF stats
