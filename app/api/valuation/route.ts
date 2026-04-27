@@ -116,7 +116,7 @@ async function fetchHDBRecords(
     const offsets = [229000, 226000, 220000]
     let bestRecs: { price: number; month: string }[] = []
     for (const offset of offsets) {
-      const res = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, next: { revalidate: 3600 } })
+      const res = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, cache: 'no-store' })
       if (!res.ok) continue
       const data = await res.json()
       if (!data.success || !data.result?.records?.length) continue
@@ -128,7 +128,7 @@ async function fetchHDBRecords(
   }
 
   // Block-level: fetch head + tail if large dataset
-  const res = await fetch(`${base}&filters=${filtersParam}&limit=500`, { headers, next: { revalidate: 3600 } })
+  const res = await fetch(`${base}&filters=${filtersParam}&limit=500`, { headers, cache: 'no-store' })
   if (!res.ok) return []
   const data = await res.json()
   if (!data.success || !data.result?.records) return []
@@ -138,7 +138,7 @@ async function fetchHDBRecords(
 
   if (total > 500) {
     const offset = Math.max(0, total - 500)
-    const tailRes = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, next: { revalidate: 3600 } })
+    const tailRes = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, cache: 'no-store' })
     if (tailRes.ok) {
       const tailData = await tailRes.json()
       if (tailData.success && tailData.result?.records) {
@@ -212,12 +212,16 @@ export async function GET(req: NextRequest) {
     }
 
     if (allRecords.length < 10 && town) {
-      for (const rid of RESOURCE_IDS.slice(0, 1)) {
-        const filters: Record<string, string> = { town }
-        if (flatType) filters.flat_type = flatType
-        const records = await fetchHDBRecords(rid, filters, apiKey, true)  // recentOnly
-        if (records.length > allRecords.length) allRecords = records
+      const rid = RESOURCE_IDS[0]
+      // Try with flat_type first, then without if no results
+      const filtersWithType: Record<string, string> = { town }
+      if (flatType) filtersWithType.flat_type = flatType
+      let townRecords = await fetchHDBRecords(rid, filtersWithType, apiKey, true)
+      if (townRecords.length < 3 && flatType) {
+        // Retry without flat_type filter
+        townRecords = await fetchHDBRecords(rid, { town }, apiKey, true)
       }
+      if (townRecords.length > allRecords.length) allRecords = townRecords
     }
 
     if (allRecords.length < 3) {
