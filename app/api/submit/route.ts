@@ -101,10 +101,11 @@ export async function POST(req: NextRequest) {
         const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`
         const to = `whatsapp:${normalizedPhone}`
         const valObj = valuation as Record<string,string> | null
-        const devName = (valObj?.development && valObj.development !== 'NIL')
+        const genericNames = ['NIL', 'LANDED HOUSING DEVELOPMENT', '']
+        const devName = (valObj?.development && !genericNames.includes(valObj.development))
           ? valObj.development
-          : (valObj?.block && valObj?.street)
-            ? `Blk ${valObj.block} ${valObj.street}`
+          : (valObj?.street && valObj.street !== '')
+            ? valObj?.block ? `Blk ${valObj.block} ${valObj.street}` : valObj.street
             : postalCode
         const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
 
