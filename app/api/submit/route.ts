@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
     const { postalCode, propertyType, unitType, floorLevel, name, mobile, valuation } = body
 
     // ── Validate ─────────────────────────────────────────────────────────────
-    if (!postalCode || !unitType || !floorLevel || !name || !mobile) {
+    const isLanded = propertyType === 'Landed'
+    if (!postalCode || !unitType || (!floorLevel && !isLanded) || !name || !mobile) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
