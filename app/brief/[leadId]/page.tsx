@@ -43,6 +43,51 @@ type Transaction = {
   flat_model: string
 }
 
+type URATransaction = {
+  contract_date: string
+  price: number
+  area: number
+  floor_range: string
+  property_type: string
+  tenure: string
+  district: string
+  project: string
+}
+
+async function getURAComparables(development: string, street: string, propertyType: string): Promise<URATransaction[]> {
+  if (!development || development === 'NIL') {
+    // Landed: search by street
+    const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
+    const landedTypes = 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=10`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
+    )
+    return res.ok ? await res.json() : []
+  }
+  // Condo: search by project name keywords
+  const keywords = development.toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .split(' ')
+    .filter((w: string) => w.length > 2)
+    .slice(0, 3)
+    .join('%')
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=10`,
+    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
+  )
+  return res.ok ? await res.json() : []
+}
+
+function formatContractDate(d: string): string {
+  if (!d || d.length < 4) return d
+  const month = d.slice(0, 2)
+  const year = d.slice(2, 4)
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const m = parseInt(month) - 1
+  return `${months[m] || month} 20${year}`
+}
+
 async function getLead(leadId: string): Promise<Lead | null> {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}&select=id,full_name,mobile,created_at,metadata`,
@@ -131,6 +176,10 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
   const block = val.block || ''
   const street = val.street || ''
   const isPrivate = val.isPrivate || meta.property_type === 'Condo' || meta.property_type === 'Landed'
+
+  const uraComparables: URATransaction[] = isPrivate
+    ? await getURAComparables(val.development || '', street, meta.property_type || '')
+    : []
 
   const [comparables, trend] = await Promise.all([
     isPrivate ? Promise.resolve([]) : getComparables(town, flatType, block, street),
@@ -411,6 +460,42 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
               <li>Ask: Already spoken to another agent?</li>
             </ul>
           </div>
+
+          {/* URA Comparables (Condo/Landed) */}
+          {isPrivate && uraComparables.length > 0 && (
+            <div className="card">
+              <div className="section-title">Recent Comparable Transactions</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Project</th>
+                    <th>Floor</th>
+                    <th>Area</th>
+                    <th>Type</th>
+                    <th>Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {uraComparables.map((t, i) => (
+                    <tr key={i}>
+                      <td>{formatContractDate(t.contract_date)}</td>
+                      <td style={{ fontSize: 11 }}>{t.project || '—'}</td>
+                      <td>{t.floor_range || '—'}</td>
+                      <td>{t.area ? `${t.area} sqm` : '—'}</td>
+                      <td style={{ fontSize: 11 }}>{t.property_type}</td>
+                      <td className="price">S${Number(t.price).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {uraComparables[0]?.tenure && (
+                <p style={{ fontSize: 11, color: '#6B7280', marginTop: 10 }}>
+                  Tenure: {uraComparables[0].tenure} · District {uraComparables[0].district}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="footer">
             <p>SKYS Branch Pte Ltd · Internal use only · Not for distribution</p>
