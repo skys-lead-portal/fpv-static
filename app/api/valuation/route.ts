@@ -13,10 +13,6 @@ function normaliseStreet(street: string): string {
     .replace(/\bTERRACE\b/g, 'TER')
     .replace(/\bPLACE\b/g, 'PL')
     .replace(/\bGARDENS\b/g, 'GDNS')
-    .replace(/\bLINK\b/g, 'LK')
-    .replace(/\bWALK\b/g, 'WK')
-    .replace(/\bNORTH\b/g, 'NTH')
-    .replace(/\bSOUTH\b/g, 'STH')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -26,31 +22,31 @@ function deriveHDBTown(roadName: string): string | null {
   const r = roadName.toUpperCase()
   const map: Record<string, string[]> = {
     'ANG MO KIO':        ['ANG MO KIO'],
-    'BEDOK':             ['BEDOK', 'CHAI CHEE', 'UPPER EAST COAST', 'NEW UPPER CHANGI'],
+    'BEDOK':             ['BEDOK', 'CHAI CHEE', 'NEW UPPER CHANGI'],
     'BISHAN':            ['BISHAN', 'SIN MING', 'MARYMOUNT'],
     'BUKIT BATOK':       ['BUKIT BATOK', 'BUKIT GOMBAK', 'HILLVIEW'],
     'BUKIT MERAH':       ['BUKIT MERAH', 'REDHILL', 'TELOK BLANGAH', 'ALEXANDRA', 'DELTA'],
     'BUKIT PANJANG':     ['BUKIT PANJANG', 'FAJAR', 'PETIR', 'PENDING'],
-    'BUKIT TIMAH':       ['BUKIT TIMAH', 'CASHEW', 'UPPER BUKIT TIMAH', 'CORONATION'],
-    'CENTRAL AREA':      ['OUTRAM', 'CHINATOWN', 'PEARL BANK', 'TANJONG PAGAR', 'BOAT QUAY'],
+    'BUKIT TIMAH':       ['BUKIT TIMAH', 'CASHEW', 'UPPER BUKIT TIMAH'],
+    'CENTRAL AREA':      ['OUTRAM', 'CHINATOWN', 'TANJONG PAGAR'],
     'CHOA CHU KANG':     ['CHOA CHU KANG', 'YEW TEE', 'KEAT HONG', 'TECK WHYE'],
-    'CLEMENTI':          ['CLEMENTI', 'WEST COAST', 'SUNSET WAY', 'PANDAN'],
+    'CLEMENTI':          ['CLEMENTI', 'WEST COAST', 'SUNSET WAY'],
     'GEYLANG':           ['GEYLANG', 'ALJUNIED', 'PAYA LEBAR', 'DAKOTA', 'LORONG'],
-    'HOUGANG':           ['HOUGANG', 'SERANGOON NORTH', 'LORONG AH SOO', 'DEFU'],
-    'JURONG EAST':       ['JURONG EAST', 'BOON LAY', 'TAMAN JURONG', 'JURONG EAST ST', 'JURONG EAST AVE', 'JURONG EAST CTR'],
-    'JURONG WEST':       ['JURONG WEST', 'LAKESIDE', 'PIONEER', 'BAHAR', 'YUAN CHING'],
-    'KALLANG/WHAMPOA':   ['KALLANG', 'WHAMPOA', 'BENDEMEER', 'BOON KENG', 'CRAWFORD', 'POTONG PASIR'],
-    'MARINE PARADE':     ['MARINE PARADE', 'SIGLAP', 'KATONG', 'EAST COAST'],
-    'PASIR RIS':         ['PASIR RIS', 'ELIAS', 'WHITE SANDS', 'TAMPINES AVE 9'],
-    'PUNGGOL':           ['PUNGGOL', 'EDGEDALE', 'NORTHSHORE', 'WATERWAY', 'PUNGGOL FIELD'],
-    'QUEENSTOWN':        ['QUEENSTOWN', 'STIRLING', 'MEI CHIN', 'COMMONWEALTH', 'DOVER', 'MARGARET', 'TANGLIN HALT'],
-    'SEMBAWANG':         ['SEMBAWANG', 'CANBERRA', 'ADMIRALTY', 'WELLINGTON'],
+    'HOUGANG':           ['HOUGANG', 'SERANGOON NORTH', 'LORONG AH SOO'],
+    'JURONG EAST':       ['JURONG EAST'],
+    'JURONG WEST':       ['JURONG WEST', 'LAKESIDE', 'PIONEER', 'YUAN CHING'],
+    'KALLANG/WHAMPOA':   ['KALLANG', 'WHAMPOA', 'BENDEMEER', 'BOON KENG', 'POTONG PASIR'],
+    'MARINE PARADE':     ['MARINE PARADE', 'SIGLAP', 'KATONG'],
+    'PASIR RIS':         ['PASIR RIS', 'ELIAS'],
+    'PUNGGOL':           ['PUNGGOL', 'EDGEDALE', 'NORTHSHORE', 'WATERWAY'],
+    'QUEENSTOWN':        ['QUEENSTOWN', 'STIRLING', 'COMMONWEALTH', 'DOVER', 'MARGARET', 'TANGLIN HALT'],
+    'SEMBAWANG':         ['SEMBAWANG', 'CANBERRA', 'ADMIRALTY'],
     'SENGKANG':          ['SENGKANG', 'FERNVALE', 'RIVERVALE', 'COMPASSVALE', 'ANCHORVALE'],
-    'SERANGOON':         ['SERANGOON', 'LORONG CHUAN', 'NERAM', 'UPPER SERANGOON'],
-    'TAMPINES':          ['TAMPINES', 'SIMEI', 'TAMPINES ST', 'TAMPINES AVE', 'TAMPINES CTRL'],
-    'TOA PAYOH':         ['TOA PAYOH', 'BRADDELL', 'CALDECOTT', 'LORONG 1 TOA PAYOH', 'LORONG 2 TOA PAYOH', 'LORONG 4', 'LORONG 5', 'LORONG 6', 'LORONG 7', 'LORONG 8'],
-    'WOODLANDS':         ['WOODLANDS', 'MARSILING', 'WOODGROVE', 'GREENWOOD'],
-    'YISHUN':            ['YISHUN', 'KHATIB', 'YISHUN ST', 'YISHUN AVE', 'YISHUN RING'],
+    'SERANGOON':         ['SERANGOON', 'LORONG CHUAN', 'UPPER SERANGOON'],
+    'TAMPINES':          ['TAMPINES', 'SIMEI'],
+    'TOA PAYOH':         ['TOA PAYOH', 'BRADDELL', 'CALDECOTT'],
+    'WOODLANDS':         ['WOODLANDS', 'MARSILING', 'WOODGROVE'],
+    'YISHUN':            ['YISHUN', 'KHATIB'],
   }
   for (const [town, keywords] of Object.entries(map)) {
     if (keywords.some(kw => r.includes(kw))) return town
@@ -91,64 +87,33 @@ function isLikelyPrivate(block: string, development: string): boolean {
   return false
 }
 
-// ── Fetch HDB resale records from data.gov.sg ────────────────────────────────
-// CKAN paginates from offset 0 (oldest first). For recent data we fetch the tail.
-async function fetchHDBRecords(
-  resourceId: string,
+// ── Query HDB transactions from Supabase cache ────────────────────────────────
+async function querySupabase(
+  supabaseUrl: string,
+  supabaseKey: string,
   filters: Record<string, string>,
-  apiKey?: string,
-  recentOnly = false,
+  limit = 200,
 ): Promise<{ price: number; month: string }[]> {
-  const headers: HeadersInit = apiKey ? { 'Authorization': apiKey } : {}
-  const filtersParam = encodeURIComponent(JSON.stringify(filters))
-  const base = `https://data.gov.sg/api/action/datastore_search?resource_id=${resourceId}`
-
-  const parseRecs = (records: Record<string, string>[]) =>
-    records
-      .map(r => ({ price: parseFloat(r.resale_price), month: r.month || '' }))
-      .filter(r => !isNaN(r.price))
-      .sort((a, b) => b.month.localeCompare(a.month))
-
-  if (recentOnly) {
-    // For town-level fallback, dataset has ~230k records total.
-    // The dataset grows by ~3k/month, so offset ~225000 gets us ~last 6 months.
-    // We try multiple high offsets and pick the freshest results.
-    const offsets = [229000, 226000, 220000]
-    let bestRecs: { price: number; month: string }[] = []
-    for (const offset of offsets) {
-      const res = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, cache: 'no-store' })
-      if (!res.ok) continue
-      const data = await res.json()
-      if (!data.success || !data.result?.records?.length) continue
-      const recs = parseRecs(data.result.records)
-      if (recs.length > bestRecs.length) bestRecs = recs
-      if (bestRecs.length >= 20) break
-    }
-    return bestRecs
+  let url = `${supabaseUrl}/rest/v1/hdb_transactions?select=resale_price,month&order=month.desc&limit=${limit}`
+  for (const [key, val] of Object.entries(filters)) {
+    url += `&${encodeURIComponent(key)}=eq.${encodeURIComponent(val)}`
   }
-
-  // Block-level: fetch head + tail if large dataset
-  const res = await fetch(`${base}&filters=${filtersParam}&limit=500`, { headers, cache: 'no-store' })
+  const res = await fetch(url, {
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': `Bearer ${supabaseKey}`,
+    },
+    cache: 'no-store',
+  })
   if (!res.ok) return []
   const data = await res.json()
-  if (!data.success || !data.result?.records) return []
-
-  const head = parseRecs(data.result.records)
-  const total: number = data.result?.total || 0
-
-  if (total > 500) {
-    const offset = Math.max(0, total - 500)
-    const tailRes = await fetch(`${base}&filters=${filtersParam}&limit=500&offset=${offset}`, { headers, cache: 'no-store' })
-    if (tailRes.ok) {
-      const tailData = await tailRes.json()
-      if (tailData.success && tailData.result?.records) {
-        return [...head, ...parseRecs(tailData.result.records)]
-          .sort((a, b) => b.month.localeCompare(a.month))
-      }
-    }
-  }
-
-  return head
+  if (!Array.isArray(data)) return []
+  return data
+    .map((r: { resale_price: string | number; month: string }) => ({
+      price: parseFloat(String(r.resale_price)),
+      month: r.month || '',
+    }))
+    .filter(r => !isNaN(r.price))
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -165,7 +130,7 @@ export async function GET(req: NextRequest) {
   try {
     // ── Step 1: OneMap address lookup ────────────────────────────────────────
     const oneMapUrl = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postal}&returnGeom=N&getAddrDetails=Y&pageNum=1`
-    const oneMapRes = await fetch(oneMapUrl, { next: { revalidate: 3600 } })
+    const oneMapRes = await fetch(oneMapUrl, { cache: 'no-store' })
     if (!oneMapRes.ok) {
       return NextResponse.json({ error: 'Address lookup failed' }, { status: 503 })
     }
@@ -191,39 +156,35 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // ── Step 2: HDB resale price lookup ─────────────────────────────────────
+    // ── Step 2: HDB resale price lookup (Supabase cache) ────────────────────
     const town = deriveHDBTown(street)
-    const apiKey = process.env.DATA_GOV_SG_API_KEY
-
-    const RESOURCE_IDS = [
-      'd_8b84c4ee58e3cfc0ece0d773c8ca6abc', // 2017-2026 live
-      'adbbddd3-30e2-445f-a123-29bee150a6fe',
-      'f1765b54-a209-4718-8d38-a39237f502b3',
-    ]
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
     let allRecords: { price: number; month: string }[] = []
 
-    const streetForFilter = street.replace(/'/g, '').replace(/'/g, '')
-    for (const rid of RESOURCE_IDS) {
-      const filters: Record<string, string> = { block, street_name: streetForFilter }
-      if (flatType) filters.flat_type = flatType
-      const records = await fetchHDBRecords(rid, filters, apiKey)
-      console.log(`[Val] block=${block} street=${streetForFilter} flat=${flatType} rid=${rid.slice(0,8)} => ${records.length} records`)
-      allRecords.push(...records)
-    }
-
-    if (allRecords.length < 10 && town) {
-      const rid = RESOURCE_IDS[0]
-      // Try with flat_type first, then without if no results
-      const filtersWithType: Record<string, string> = { town }
-      if (flatType) filtersWithType.flat_type = flatType
-      let townRecords = await fetchHDBRecords(rid, filtersWithType, apiKey, true)
-      console.log(`[Val] town=${town} flat=${flatType} => ${townRecords.length} records`)
-      if (townRecords.length < 3 && flatType) {
-        townRecords = await fetchHDBRecords(rid, { town }, apiKey, true)
-        console.log(`[Val] town=${town} no-flat => ${townRecords.length} records`)
+    if (supabaseUrl && supabaseKey) {
+      // Block + street level query (precise)
+      const blockFilters: Record<string, string> = {
+        block,
+        street_name: street.replace(/'/g, ''),
       }
-      if (townRecords.length > allRecords.length) allRecords = townRecords
+      if (flatType) blockFilters.flat_type = flatType
+      allRecords = await querySupabase(supabaseUrl, supabaseKey, blockFilters, 200)
+
+      // Town-level fallback if not enough block data
+      if (allRecords.length < 10 && town) {
+        const townFilters: Record<string, string> = { town }
+        if (flatType) townFilters.flat_type = flatType
+        let townRecords = await querySupabase(supabaseUrl, supabaseKey, townFilters, 500)
+
+        // If still not enough, try without flat_type
+        if (townRecords.length < 3 && flatType) {
+          townRecords = await querySupabase(supabaseUrl, supabaseKey, { town }, 500)
+        }
+
+        if (townRecords.length > allRecords.length) allRecords = townRecords
+      }
     }
 
     if (allRecords.length < 3) {
