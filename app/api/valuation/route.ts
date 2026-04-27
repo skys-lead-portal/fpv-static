@@ -208,6 +208,7 @@ export async function GET(req: NextRequest) {
       const filters: Record<string, string> = { block, street_name: streetForFilter }
       if (flatType) filters.flat_type = flatType
       const records = await fetchHDBRecords(rid, filters, apiKey)
+      console.log(`[Val] block=${block} street=${streetForFilter} flat=${flatType} rid=${rid.slice(0,8)} => ${records.length} records`)
       allRecords.push(...records)
     }
 
@@ -217,9 +218,10 @@ export async function GET(req: NextRequest) {
       const filtersWithType: Record<string, string> = { town }
       if (flatType) filtersWithType.flat_type = flatType
       let townRecords = await fetchHDBRecords(rid, filtersWithType, apiKey, true)
+      console.log(`[Val] town=${town} flat=${flatType} => ${townRecords.length} records`)
       if (townRecords.length < 3 && flatType) {
-        // Retry without flat_type filter
         townRecords = await fetchHDBRecords(rid, { town }, apiKey, true)
+        console.log(`[Val] town=${town} no-flat => ${townRecords.length} records`)
       }
       if (townRecords.length > allRecords.length) allRecords = townRecords
     }
