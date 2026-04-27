@@ -28,6 +28,8 @@ type Lead = {
       propertyType?: string
       psfLow?: number
       psfHigh?: number
+      tenure?: string
+      district?: string
     }
   }
 }
@@ -179,6 +181,45 @@ function getFloorPremium(txns: Transaction[]) {
   return { low: avg(bands.low), mid: avg(bands.mid), high: avg(bands.high) }
 }
 
+// ── URA Price Trend ──────────────────────────────────────────────────────────
+async function getURATrend(development: string, street: string, isLanded: boolean): Promise<{ pct: number; recent: number; older: number } | null> {
+  let url = ''
+  if (isLanded) {
+    const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
+    url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price&street=ilike.%25${streetEncoded}%25&property_type=in.(Terrace,Semi-detached,Detached)&order=contract_date.desc&limit=100`
+  } else {
+    const keywords = development.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(' ').filter((w: string) => w.length > 2).slice(0, 3).join('%')
+    url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=100`
+  }
+  const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' })
+  if (!res.ok) return null
+  const rows: { contract_date: string; price: number }[] = await res.json()
+  if (rows.length < 6) return null
+  const sorted = rows.sort((a, b) => b.contract_date.localeCompare(a.contract_date))
+  const half = Math.floor(sorted.length / 2)
+  const recent = sorted.slice(0, half)
+  const older = sorted.slice(half)
+  const avgRecent = recent.reduce((s, r) => s + Number(r.price), 0) / recent.length
+  const avgOlder = older.reduce((s, r) => s + Number(r.price), 0) / older.length
+  const pct = ((avgRecent - avgOlder) / avgOlder) * 100
+  return { pct, recent: avgRecent, older: avgOlder }
+}
+
+// ── URA Floor Premium ─────────────────────────────────────────────────────────
+function getURAFloorPremium(txns: URATransaction[]): { low: number | null; mid: number | null; high: number | null } {
+  const bands: Record<string, number[]> = { low: [], mid: [], high: [] }
+  for (const t of txns) {
+    const range = t.floor_range || ''
+    const lo = parseInt(range.split('-')[0]) || 0
+    if (lo === 0 || range === '-') continue // landed — no floor
+    if (lo <= 6) bands.low.push(Number(t.price))
+    else if (lo <= 15) bands.mid.push(Number(t.price))
+    else bands.high.push(Number(t.price))
+  }
+  const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+  return { low: avg(bands.low), mid: avg(bands.mid), high: avg(bands.high) }
+}
+
 export default async function BriefPage({ params }: { params: Promise<{ leadId: string }> }) {
   const { leadId } = await params
   const lead = await getLead(leadId)
@@ -200,16 +241,35 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
   const street = val.street || ''
   const isPrivate = val.isPrivate || meta.property_type === 'Condo' || meta.property_type === 'Landed'
 
-  const uraComparables: URATransaction[] = isPrivate
-    ? await getURAComparables(val.development || '', street, meta.property_type || '', meta.unit_type)
-    : []
+  const isLandedType = meta.property_type === 'Landed'
 
-  const [comparables, trend] = await Promise.all([
+  const [uraComparables, uraTrend, comparables, trend] = await Promise.all([
+    isPrivate ? getURAComparables(val.development || '', street, meta.property_type || '', meta.unit_type) : Promise.resolve([]),
+    isPrivate ? getURATrend(val.development || '', street, isLandedType) : Promise.resolve(null),
     isPrivate ? Promise.resolve([]) : getComparables(town, flatType, block, street),
     isPrivate ? Promise.resolve(null) : getPriceTrend(town, flatType),
   ])
 
   const floorPremium = comparables.length >= 5 ? getFloorPremium(comparables) : null
+  const uraFloorPremium = uraComparables.length >= 5 ? getURAFloorPremium(uraComparables) : null
+
+  // URA PSF stats
+  const uraPsfStats = uraComparables.length >= 3 ? (() => {
+    const valid = uraComparables.filter(t => Number(t.area) > 0 && Number(t.price) > 0)
+    if (!valid.length) return null
+    const psfs = valid.map(t => Math.round(Number(t.price) / (Number(t.area) * 10.764)))
+    psfs.sort((a, b) => a - b)
+    return {
+      avg: Math.round(psfs.reduce((a, b) => a + b, 0) / psfs.length),
+      low: psfs[0],
+      high: psfs[psfs.length - 1],
+    }
+  })() : null
+
+  // URA tenure + lease info
+  const uraTenure = val.tenure || uraComparables[0]?.tenure || null
+  const uraDistrict = val.district || uraComparables[0]?.district || null
+  const activeTrend = isPrivate ? uraTrend : trend
   const leaseYear = comparables[0]?.lease_commence_date ? parseInt(comparables[0].lease_commence_date) : null
   const remainingLease = comparables[0]?.remaining_lease || null
   const remainingYears = remainingLease ? parseInt(remainingLease) : null
@@ -357,6 +417,27 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                 </div>
               </div>
             )}
+            {isPrivate && (
+              <div className="grid3">
+                <div className="stat">
+                  <label>Tenure</label>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: NAVY, display: 'block' }}>
+                    {uraTenure ? (uraTenure.toLowerCase().includes('freehold') ? 'Freehold' : uraTenure.includes('999') ? '999-yr Leasehold' : '99-yr Leasehold') : '—'}
+                  </span>
+                  <sub style={{ fontSize: 10 }}>{uraTenure ? uraTenure.slice(0, 35) : ''}</sub>
+                </div>
+                <div className="stat">
+                  <label>District</label>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: NAVY, display: 'block' }}>{uraDistrict ? `D${uraDistrict}` : '—'}</span>
+                  <sub>Singapore</sub>
+                </div>
+                <div className="stat">
+                  <label>Avg PSF</label>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: NAVY, display: 'block' }}>{uraPsfStats ? `S$${uraPsfStats.avg.toLocaleString()}` : '—'}</span>
+                  <sub>{uraPsfStats ? `S$${uraPsfStats.low.toLocaleString()}–S$${uraPsfStats.high.toLocaleString()} range` : 'psf'}</sub>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Valuation */}
@@ -377,10 +458,10 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                 <div className="grid2">
                   <div className="stat">
                     <label>Market Trend</label>
-                    {trend ? (
+                    {activeTrend ? (
                       <>
-                        <span style={{ fontSize: 16 }} className={trend.pct >= 0 ? 'trend-up' : 'trend-down'}>
-                          {trend.pct >= 0 ? '▲' : '▼'} {Math.abs(trend.pct).toFixed(1)}%
+                        <span style={{ fontSize: 16 }} className={activeTrend.pct >= 0 ? 'trend-up' : 'trend-down'}>
+                          {activeTrend.pct >= 0 ? '▲' : '▼'} {Math.abs(activeTrend.pct).toFixed(1)}%
                         </span>
                         <sub>recent vs prior period</sub>
                       </>
@@ -391,7 +472,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                   <div className="stat">
                     <label>Data Basis</label>
                     <span style={{ fontSize: 14 }}>{val.transactionCount} txns</span>
-                    <sub>{town} · {flatType}</sub>
+                    <sub>{isPrivate ? (val.development || street) : `${town} · ${flatType}`}</sub>
                   </div>
                 </div>
               </>
@@ -463,6 +544,31 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
             </div>
           )}
 
+          {/* URA Floor Premium */}
+          {isPrivate && uraFloorPremium && (uraFloorPremium.low || uraFloorPremium.mid || uraFloorPremium.high) && (
+            <div className="card">
+              <div className="section-title">Floor Level Premium</div>
+              <div className="floor-band">
+                {[
+                  { label: 'Low (01–06)', val: uraFloorPremium.low, key: 'low' },
+                  { label: 'Mid (07–15)', val: uraFloorPremium.mid, key: 'mid' },
+                  { label: 'High (16+)', val: uraFloorPremium.high, key: 'high' },
+                ].map(({ label, val: v, key }) => {
+                  const floorStr = (meta.floor_level || '').toLowerCase()
+                  const isActive = (key === 'low' && floorStr.includes('low')) ||
+                    (key === 'mid' && floorStr.includes('mid')) ||
+                    (key === 'high' && floorStr.includes('high'))
+                  return v ? (
+                    <div key={key} className={`band ${isActive ? 'active' : ''}`}>
+                      <label>{label}{isActive ? ' ← Lead' : ''}</label>
+                      <span>{formatPrice(v)}</span>
+                    </div>
+                  ) : null
+                })}
+              </div>
+            </div>
+          )}
+
           {/* URA Comparables (Condo/Landed) */}
           {isPrivate && uraComparables.length > 0 && (
             <div className="card">
@@ -506,15 +612,16 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
               <h4>Opening Line</h4>
               <p>
                 {val.estimatedLow
-                  ? `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently checked your property valuation online — I've prepared a quick market analysis for your ${flatType} in ${town}. Current market range is ${val.estimatedLow}–${val.estimatedHigh} based on ${val.transactionCount} recent transactions. Do you have 5 minutes?"`
+                  ? `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently checked your property valuation online — I've prepared a market analysis for your ${isPrivate ? (val.development || street) : `${flatType} in ${town}`}. Current market range is ${val.estimatedLow}–${val.estimatedHigh} based on ${val.transactionCount} recent transactions. Do you have 5 minutes?"`
                   : `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently requested a property valuation — I'd like to share what we found for your area. Do you have 5 minutes?"`
                 }
               </p>
             </div>
             <ul className="talking-points" style={{ paddingLeft: 0, listStyle: 'none' }}>
-              {val.estimatedLow && <li>Market is active — {val.transactionCount} transactions in {town} recently</li>}
-              {trend && trend.pct > 0 && <li>Prices trending up {trend.pct.toFixed(1)}% — good time to explore options</li>}
-              {trend && trend.pct < 0 && <li>Market softening slightly — worth acting sooner rather than later</li>}
+              {val.estimatedLow && <li>Market is active — {val.transactionCount} transactions {isPrivate ? `at ${val.development || street}` : `in ${town}`} recently</li>}
+              {activeTrend && activeTrend.pct > 0 && <li>Prices trending up {activeTrend.pct.toFixed(1)}% — good time to explore options</li>}
+              {activeTrend && activeTrend.pct < 0 && <li>Market softening slightly — worth acting sooner rather than later</li>}
+              {isPrivate && uraPsfStats && <li>Current PSF: S${uraPsfStats.avg.toLocaleString()} avg — use this to anchor price conversation</li>}
               {leaseWarning && <li>Lease under 60 years — buyer pool narrowing, discuss timing strategy</li>}
               {floorPremium?.high && floorPremium?.low && <li>Floor premium: high vs low floor gap is {formatPrice(floorPremium.high - floorPremium.low)} — factor into strategy</li>}
               <li>Ask: Outstanding loan balance? CPF accrued interest aware?</li>
