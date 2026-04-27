@@ -11,7 +11,11 @@ def ura_get(url, headers):
         raw = r.read()
     if raw.startswith(b'\xef\xbb\xbf'):
         raw = raw[3:]
-    return json.loads(raw.decode('utf-8'))
+    # Try UTF-8 first, fall back to latin-1 for batches with special chars
+    try:
+        return json.loads(raw.decode('utf-8'))
+    except UnicodeDecodeError:
+        return json.loads(raw.decode('latin-1'))
 
 def get_token():
     d = ura_get("https://eservice.ura.gov.sg/uraDataService/insertNewToken/v1",
