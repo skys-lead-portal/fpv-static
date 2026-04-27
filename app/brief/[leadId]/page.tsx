@@ -229,21 +229,45 @@ async function getURATrend(development: string, street: string, isLanded: boolea
   return { pct, recent: avgRecent, older: avgOlder }
 }
 
-// ── URA Floor Premium ─────────────────────────────────────────────────────────
-function getURAFloorPremium(txns: URATransaction[]): { low: number | null; mid: number | null; high: number | null } {
+// ── URA Floor Premium (async, full dataset, PSF-based) ───────────────────────
+async function getURAFloorPremium(development: string, unitType: string): Promise<{ low: number | null; mid: number | null; high: number | null } | null> {
+  const keywords = development.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(' ').filter((w: string) => w.length > 2).slice(0, 3).join('%')
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/ura_transactions?select=floor_range,price,area&project=ilike.%25${encodeURIComponent(keywords)}%25&limit=500`,
+    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' }
+  )
+  if (!res.ok) return null
+  const rows: { floor_range: string; price: number; area: number }[] = await res.json()
+  if (rows.length < 10) return null
+
+  // Calculate avg PSF per floor band (normalized for unit size)
   const bands: Record<string, number[]> = { low: [], mid: [], high: [] }
-  for (const t of txns) {
-    const range = t.floor_range || ''
-    if (!range || range === '-') continue // landed — no floor
+  for (const r of rows) {
+    const range = r.floor_range || ''
+    if (!range || range === '-') continue
     const lo = parseInt(range.split('-')[0]) || 0
     if (lo === 0) continue
-    // Condo-friendly bands: low ≤10, mid 11-25, high 26+
-    if (lo <= 10) bands.low.push(Number(t.price))
-    else if (lo <= 25) bands.mid.push(Number(t.price))
-    else bands.high.push(Number(t.price))
+    const sqft = Number(r.area) * 10.764
+    if (sqft <= 0) continue
+    const psf = Number(r.price) / sqft
+    if (psf < 500 || psf > 20000) continue
+    if (lo <= 10) bands.low.push(psf)
+    else if (lo <= 25) bands.mid.push(psf)
+    else bands.high.push(psf)
   }
-  const avg = (arr: number[]) => arr.length >= 2 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null
-  return { low: avg(bands.low), mid: avg(bands.mid), high: avg(bands.high) }
+
+  // Convert avg PSF back to price using typical unit sqft
+  const typicalSqft = getAreaFilter(unitType)
+    ? Math.round((getAreaFilter(unitType)!.min + getAreaFilter(unitType)!.max) / 2) * 10.764 / 10.764 * 10.764
+    : 1000 // default 1000 sqft
+  const avgPsf = (arr: number[]) => arr.length >= 2 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
+  const toPrice = (psf: number | null) => psf ? Math.round(psf * typicalSqft) : null
+
+  return {
+    low: toPrice(avgPsf(bands.low)),
+    mid: toPrice(avgPsf(bands.mid)),
+    high: toPrice(avgPsf(bands.high)),
+  }
 }
 
 export default async function BriefPage({ params }: { params: Promise<{ leadId: string }> }) {
@@ -278,7 +302,9 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
   ])
 
   const floorPremium = hdbFloorPremiumData || (comparables.length >= 5 ? getFloorPremium(comparables) : null)
-  const uraFloorPremium = uraComparables.length >= 5 ? getURAFloorPremium(uraComparables) : null
+  const uraFloorPremium = (isPrivate && !isLandedType && val.development && val.development !== 'NIL')
+    ? await getURAFloorPremium(val.development, meta.unit_type || '')
+    : null
 
   // URA PSF stats
   const uraPsfStats = uraComparables.length >= 3 ? (() => {
