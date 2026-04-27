@@ -173,17 +173,19 @@ export async function GET(req: NextRequest) {
           // Landed: filter by specific sub-type if provided, else all landed types
           const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
           // Map form sub-type to URA property_type values
+          // Note: Strata types are rare (<3% of transactions) so we exclude them for simplicity
+          // Main landed types cover 97%+ of transactions
           const landedSubTypeMap: Record<string, string> = {
-            'Terrace': 'Terrace,Strata%20Terrace',
-            'Corner Terrace': 'Terrace,Strata%20Terrace',
-            'Semi-Detached': 'Semi-detached,Strata%20Semi-detached',
-            'Detached': 'Detached,Strata%20Detached',
+            'Terrace': 'Terrace',
+            'Corner Terrace': 'Terrace',
+            'Semi-Detached': 'Semi-detached',
+            'Detached': 'Detached',
           }
           const landedTypes = (flatType && landedSubTypeMap[flatType])
             ? landedSubTypeMap[flatType]
-            : 'Terrace,Semi-detached,Detached,Strata%20Terrace,Strata%20Semi-detached,Strata%20Detached'
+            : 'Terrace,Semi-detached,Detached'
           // Note: use encodeURI (not encodeURIComponent) so %20 passes through correctly
-          uraUrl = encodeURI(`${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=200`)
+          uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=200`
         } else {
           // Condo/Apartment: match by project name keywords
           projectKeywords = development.toUpperCase()
@@ -204,14 +206,14 @@ export async function GET(req: NextRequest) {
           // Landed fallback: if insufficient street data, search by property type + recent date
           if (Array.isArray(uraData) && uraData.length < 3 && (isLanded || !development || development === 'NIL')) {
             const landedSubTypeMap2: Record<string, string> = {
-              'Terrace': 'Terrace,Strata%20Terrace',
-              'Corner Terrace': 'Terrace,Strata%20Terrace',
-              'Semi-Detached': 'Semi-detached,Strata%20Semi-detached',
-              'Detached': 'Detached,Strata%20Detached',
+              'Terrace': 'Terrace',
+              'Corner Terrace': 'Terrace',
+              'Semi-Detached': 'Semi-detached',
+              'Detached': 'Detached',
             }
             const landedTypes2 = (flatType && landedSubTypeMap2[flatType])
               ? landedSubTypeMap2[flatType]
-              : 'Terrace,Semi-detached,Detached,Strata%20Terrace,Strata%20Semi-detached,Strata%20Detached'
+              : 'Terrace,Semi-detached,Detached'
             const fallbackRes = await fetch(
               `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&property_type=in.(${landedTypes2})&order=contract_date.desc&limit=200`,
               { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
