@@ -1,5 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// ── Normalise OneMap street names to match HDB dataset format ────────────────
+function normaliseStreet(street: string): string {
+  return street
+    .toUpperCase()
+    .replace(/\bAVENUE\b/g, 'AVE')
+    .replace(/\bROAD\b/g, 'RD')
+    .replace(/\bSTREET\b/g, 'ST')
+    .replace(/\bDRIVE\b/g, 'DR')
+    .replace(/\bCRESCENT\b/g, 'CRES')
+    .replace(/\bCLOSE\b/g, 'CL')
+    .replace(/\bTERRACE\b/g, 'TER')
+    .replace(/\bPLACE\b/g, 'PL')
+    .replace(/\bGARDENS\b/g, 'GDNS')
+    .replace(/\bLINK\b/g, 'LK')
+    .replace(/\bWALK\b/g, 'WK')
+    .replace(/\bNORTH\b/g, 'NTH')
+    .replace(/\bSOUTH\b/g, 'STH')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // ── Town keyword map (HDB resale dataset town names) ─────────────────────────
 function deriveHDBTown(roadName: string): string | null {
   const r = roadName.toUpperCase()
@@ -119,7 +140,7 @@ export async function GET(req: NextRequest) {
 
     const r = oneMapData.results[0]
     const block = (r.BLK_NO || '').toString().trim()
-    const street = (r.ROAD_NAME || '').toString().trim().toUpperCase()
+    const street = normaliseStreet((r.ROAD_NAME || '').toString().trim())
     const development = (r.BUILDING || '').toString().trim()
 
     // ── Private property check ───────────────────────────────────────────────
@@ -145,7 +166,7 @@ export async function GET(req: NextRequest) {
 
     let allRecords: { price: number; month: string }[] = []
 
-    const streetForFilter = street.replace(/'/g, '')
+    const streetForFilter = street.replace(/'/g, '').replace(/'/g, '')
     for (const rid of RESOURCE_IDS) {
       const filters: Record<string, string> = { block, street_name: streetForFilter }
       if (flatType) filters.flat_type = flatType
