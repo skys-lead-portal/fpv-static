@@ -152,16 +152,25 @@ export async function GET(req: NextRequest) {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
       const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-      if (supabaseUrl && supabaseKey && development && development !== 'NIL') {
-        // Build search keywords from development name
-        const keywords = development.toUpperCase()
-          .replace(/[^A-Z0-9 ]/g, ' ')
-          .split(' ')
-          .filter((w: string) => w.length > 2)
-          .slice(0, 3)
-          .join('%')
+      if (supabaseUrl && supabaseKey) {
+        const isLanded = propertyType === 'Landed'
+        let uraUrl = ''
+        let projectKeywords = ''
 
-        const uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=200`
+        if (isLanded || !development || development === 'NIL') {
+          // Landed: match by street name
+          const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
+          uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached)&order=contract_date.desc&limit=200`
+        } else {
+          // Condo/Apartment: match by project name keywords
+          projectKeywords = development.toUpperCase()
+            .replace(/[^A-Z0-9 ]/g, ' ')
+            .split(' ')
+            .filter((w: string) => w.length > 2)
+            .slice(0, 3)
+            .join('%')
+          uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district&project=ilike.%25${encodeURIComponent(projectKeywords)}%25&order=contract_date.desc&limit=200`
+        }
         const uraRes = await fetch(uraUrl, {
           headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
           cache: 'no-store',
@@ -179,7 +188,7 @@ export async function GET(req: NextRequest) {
 
             // Get exact project name
             const projRes = await fetch(
-              `${supabaseUrl}/rest/v1/ura_transactions?select=project&project=ilike.%25${encodeURIComponent(keywords)}%25&limit=1`,
+              `${supabaseUrl}/rest/v1/ura_transactions?select=project&project=ilike.%25${encodeURIComponent(projectKeywords)}%25&limit=1`,
               { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
             )
             const projData = projRes.ok ? await projRes.json() : []
