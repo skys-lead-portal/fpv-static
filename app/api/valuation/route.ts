@@ -148,6 +148,60 @@ export async function GET(req: NextRequest) {
     // ── Private property check ───────────────────────────────────────────────
     const isPrivateByType = propertyType === 'Condo' || propertyType === 'Landed'
     if (isPrivateByType || isLikelyPrivate(block, development)) {
+      // Try URA transaction data for private property
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+      if (supabaseUrl && supabaseKey && development && development !== 'NIL') {
+        // Build search keywords from development name
+        const keywords = development.toUpperCase()
+          .replace(/[^A-Z0-9 ]/g, ' ')
+          .split(' ')
+          .filter((w: string) => w.length > 2)
+          .slice(0, 3)
+          .join('%')
+
+        const uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district&project=ilike.%25${encodeURIComponent(keywords)}%25&order=contract_date.desc&limit=200`
+        const uraRes = await fetch(uraUrl, {
+          headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+          cache: 'no-store',
+        })
+
+        if (uraRes.ok) {
+          const uraData = await uraRes.json()
+          if (Array.isArray(uraData) && uraData.length >= 3) {
+            const prices = uraData.map((r: { price: number }) => Number(r.price)).filter(p => p > 0).sort((a, b) => a - b)
+            const low = percentile(prices, 25)
+            const high = percentile(prices, 75)
+            const latestDate = uraData[0]?.contract_date || ''
+            const tenure = uraData[0]?.tenure || ''
+            const district = uraData[0]?.district || ''
+
+            // Get exact project name
+            const projRes = await fetch(
+              `${supabaseUrl}/rest/v1/ura_transactions?select=project&project=ilike.%25${encodeURIComponent(keywords)}%25&limit=1`,
+              { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
+            )
+            const projData = projRes.ok ? await projRes.json() : []
+            const projectName = projData[0]?.project || development
+
+            return NextResponse.json({
+              block, street,
+              development: projectName,
+              propertyType: propertyType || 'Private',
+              isPrivate: true,
+              estimatedLow: formatPrice(low),
+              estimatedHigh: formatPrice(high),
+              transactionCount: uraData.length,
+              latestMonth: latestDate,
+              tenure,
+              district,
+            })
+          }
+        }
+      }
+
+      // No URA data found
       return NextResponse.json({
         block, street, development,
         propertyType: propertyType || 'Private',
