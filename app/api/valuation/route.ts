@@ -215,7 +215,7 @@ export async function GET(req: NextRequest) {
               .sort((a: number, b: number) => a - b)
 
             let low: number, high: number
-            if (validPsf.length >= 3 && flatType !== 'Landed') {
+            if (validPsf.length >= 3 && propertyType !== 'Landed') {
               // PSF-based for condo — multiply by typical sqft for unit type
               const sqftRange = getTypicalSqft(flatType || '')
               const psfLow = percentile(validPsf, 25)
