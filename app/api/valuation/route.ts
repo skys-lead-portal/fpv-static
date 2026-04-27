@@ -170,9 +170,19 @@ export async function GET(req: NextRequest) {
         let projectKeywords = ''
 
         if (isLanded || !development || development === 'NIL') {
-          // Landed: try street first, fall back to district
+          // Landed: filter by specific sub-type if provided, else all landed types
           const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
-          uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached)&order=contract_date.desc&limit=200`
+          // Map form sub-type to URA property_type values
+          const landedSubTypeMap: Record<string, string> = {
+            'Terrace': 'Terrace,Strata+Terrace',
+            'Corner Terrace': 'Terrace,Strata+Terrace',
+            'Semi-Detached': 'Semi-detached,Strata+Semi-detached',
+            'Detached': 'Detached,Strata+Detached',
+          }
+          const landedTypes = (flatType && landedSubTypeMap[flatType])
+            ? landedSubTypeMap[flatType]
+            : 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
+          uraUrl = `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=200`
         } else {
           // Condo/Apartment: match by project name keywords
           projectKeywords = development.toUpperCase()
@@ -192,9 +202,17 @@ export async function GET(req: NextRequest) {
           let uraData = await uraRes.json()
           // Landed fallback: if insufficient street data, search by property type + recent date
           if (Array.isArray(uraData) && uraData.length < 3 && (isLanded || !development || development === 'NIL')) {
-            const landedTypes = 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
+            const landedSubTypeMap2: Record<string, string> = {
+              'Terrace': 'Terrace,Strata+Terrace',
+              'Corner Terrace': 'Terrace,Strata+Terrace',
+              'Semi-Detached': 'Semi-detached,Strata+Semi-detached',
+              'Detached': 'Detached,Strata+Detached',
+            }
+            const landedTypes2 = (flatType && landedSubTypeMap2[flatType])
+              ? landedSubTypeMap2[flatType]
+              : 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
             const fallbackRes = await fetch(
-              `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&property_type=in.(${landedTypes})&order=contract_date.desc&limit=200`,
+              `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&property_type=in.(${landedTypes2})&order=contract_date.desc&limit=200`,
               { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
             )
             if (fallbackRes.ok) {
@@ -224,7 +242,8 @@ export async function GET(req: NextRequest) {
               low = psfLow * sqftRange.typical
               high = psfHigh * sqftRange.typical
             } else {
-              // Raw price range for landed (area varies too much for PSF)
+              // Landed: use raw price range (P25-P75) filtered by sub-type
+              // PSF here is land PSF — still useful context for agents
               const prices = uraData.map((r: { price: number }) => Number(r.price)).filter((p: number) => p > 0).sort((a: number, b: number) => a - b)
               low = percentile(prices, 25)
               high = percentile(prices, 75)

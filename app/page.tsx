@@ -344,7 +344,9 @@ export default function Home() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                     <div>
-                      <label style={labelStyle}>{formData.propertyType === 'HDB' ? 'Flat Type' : 'Unit Size'}</label>
+                      <label style={labelStyle}>
+                        {formData.propertyType === 'HDB' ? 'Flat Type' : formData.propertyType === 'Landed' ? 'Property Sub-Type' : 'Unit Size'}
+                      </label>
                       <select
                         value={formData.unitType}
                         onChange={e => setFormData(f => ({ ...f, unitType: e.target.value }))}
@@ -359,6 +361,13 @@ export default function Home() {
                             <option value="4 ROOM">4-Room</option>
                             <option value="5 ROOM">5-Room</option>
                             <option value="EXECUTIVE">Executive</option>
+                          </>
+                        ) : formData.propertyType === 'Landed' ? (
+                          <>
+                            <option value="Terrace">Terrace</option>
+                            <option value="Semi-Detached">Semi-Detached</option>
+                            <option value="Detached">Detached</option>
+                            <option value="Corner Terrace">Corner Terrace</option>
                           </>
                         ) : (
                           <>

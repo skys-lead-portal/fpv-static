@@ -71,10 +71,18 @@ async function getURAComparables(development: string, street: string, propertyTy
   const areaFilter = unitType ? getAreaFilter(unitType) : null
 
   if (!development || development === 'NIL') {
-    // Landed: search by street
+    // Landed: search by street, filter by sub-type if provided
     const streetEncoded = encodeURIComponent(street.replace(/'/g, ''))
-    const landedTypes = 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
-    let url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedTypes})&order=contract_date.desc&limit=10`
+    const landedSubTypeMap: Record<string, string> = {
+      'Terrace': 'Terrace,Strata+Terrace',
+      'Corner Terrace': 'Terrace,Strata+Terrace',
+      'Semi-Detached': 'Semi-detached,Strata+Semi-detached',
+      'Detached': 'Detached,Strata+Detached',
+    }
+    const landedFilter = (unitType && landedSubTypeMap[unitType])
+      ? landedSubTypeMap[unitType]
+      : 'Terrace,Semi-detached,Detached,Strata+Terrace,Strata+Semi-detached,Strata+Detached'
+    const url = `${SUPABASE_URL}/rest/v1/ura_transactions?select=contract_date,price,area,floor_range,property_type,tenure,district,project&street=ilike.%25${streetEncoded}%25&property_type=in.(${landedFilter})&order=contract_date.desc&limit=10`
     const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }, cache: 'no-store' })
     return res.ok ? await res.json() : []
   }
@@ -365,7 +373,9 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                   <div style={{ fontSize: 14, color: GOLD, fontWeight: 700, marginTop: 4 }}>Midpoint: {midpoint}</div>
                   <div className="basis">{val.transactionCount} comparable transactions · Data to {val.latestMonth}</div>
                   {val.psfLow && val.psfHigh && (
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>PSF: S${val.psfLow.toLocaleString()} – S${val.psfHigh.toLocaleString()} psf</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
+                      {meta.property_type === 'Landed' ? 'Land PSF' : 'PSF'}: S${val.psfLow.toLocaleString()} – S${val.psfHigh.toLocaleString()} psf
+                    </div>
                   )}
                 </div>
                 <div className="grid2">
