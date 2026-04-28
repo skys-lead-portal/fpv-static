@@ -58,7 +58,7 @@ type URATransaction = {
   project: string
 }
 
-// Map unit type to approximate sqm range for PSF area filtering (internal use)
+// Map unit type to sqm range for area filtering (internal use)
 function getAreaFilter(unitType: string): { min: number; max: number } | null {
   const u = unitType.toLowerCase()
   if (u.includes('studio') || u.includes('1br') || u.includes('1 bed')) return { min: 30, max: 65 }
@@ -67,6 +67,17 @@ function getAreaFilter(unitType: string): { min: number; max: number } | null {
   if (u.includes('4 bed') || u.includes('4br')) return { min: 120, max: 250 }
   if (u.includes('5 bed') || u.includes('5br') || u.includes('penthouse')) return { min: 170, max: 600 }
   return null
+}
+
+// Typical sqft (mid-point) per bedroom count — matches valuation/route.ts buckets
+function getTypicalSqft(unitType: string): number {
+  const u = (unitType || '').toLowerCase()
+  if (u.includes('studio') || u.includes('1br') || u.includes('1 bed')) return 506
+  if (u.includes('2 bed') || u.includes('2br'))                          return 797
+  if (u.includes('3 bed') || u.includes('3br') || u.includes('3 room')) return 1098
+  if (u.includes('4 bed') || u.includes('4br') || u.includes('4 room')) return 1550
+  if (u.includes('5') || u.includes('penthouse'))                        return 2400
+  return 900 // default
 }
 
 async function getURAComparables(development: string, street: string, propertyType: string, unitType?: string): Promise<URATransaction[]> {
@@ -256,10 +267,8 @@ async function getURAFloorPremium(development: string, unitType: string): Promis
     else bands.high.push(psf)
   }
 
-  // Convert avg PSF back to price using typical unit sqft
-  const typicalSqft = getAreaFilter(unitType)
-    ? Math.round((getAreaFilter(unitType)!.min + getAreaFilter(unitType)!.max) / 2) * 10.764 / 10.764 * 10.764
-    : 1000 // default 1000 sqft
+  // Convert avg PSF back to price using typical unit sqft (aligned with valuation/route.ts)
+  const typicalSqft = getTypicalSqft(unitType)
   const avgPsf = (arr: number[]) => arr.length >= 2 ? arr.reduce((a, b) => a + b, 0) / arr.length : null
   const toPrice = (psf: number | null) => psf ? Math.round(psf * typicalSqft) : null
 
