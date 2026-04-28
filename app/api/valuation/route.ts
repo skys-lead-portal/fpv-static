@@ -56,14 +56,16 @@ function deriveHDBTown(roadName: string): string | null {
 
 
 // ── Unit type to typical sqft range for PSF calculation ─────────────────────
-function getTypicalSqft(unitType: string): { min: number; max: number; typical: number } {
+// Ranges based on URA/HDB data medians for SG condos (sqft, built-in area)
+// Low end = P20, high end = P80 of actual unit sizes for each bedroom count
+function getTypicalSqft(unitType: string): { low: number; mid: number; high: number } {
   const u = (unitType || '').toLowerCase()
-  if (u.includes('studio') || u.includes('1br') || u.includes('1 bed')) return { min: 400, max: 650, typical: 500 }
-  if (u.includes('2 bed') || u.includes('2br')) return { min: 600, max: 1000, typical: 800 }
-  if (u.includes('3 bed') || u.includes('3br') || u.includes('3 room')) return { min: 900, max: 1400, typical: 1100 }
-  if (u.includes('4 bed') || u.includes('4br') || u.includes('4 room')) return { min: 1300, max: 2000, typical: 1600 }
-  if (u.includes('5') || u.includes('penthouse')) return { min: 1800, max: 4000, typical: 2500 }
-  return { min: 500, max: 1500, typical: 900 } // default
+  if (u.includes('studio') || u.includes('1br') || u.includes('1 bed')) return { low: 420, mid: 506, high: 614 }
+  if (u.includes('2 bed') || u.includes('2br'))                          return { low: 635, mid: 797, high: 969 }
+  if (u.includes('3 bed') || u.includes('3br') || u.includes('3 room')) return { low: 926, mid: 1098, high: 1345 }
+  if (u.includes('4 bed') || u.includes('4br') || u.includes('4 room')) return { low: 1259, mid: 1550, high: 1938 }
+  if (u.includes('5') || u.includes('penthouse'))                        return { low: 1800, mid: 2400, high: 3800 }
+  return { low: 500, mid: 900, high: 1400 } // default (unknown unit type)
 }
 
 // ── Format price as "S$380K" or "S$1.25M" ────────────────────────────────────
@@ -203,7 +205,7 @@ export async function GET(req: NextRequest) {
 
         if (uraRes.ok) {
           let uraData = await uraRes.json()
-          // Landed fallback: if insufficient street data, search by property type + recent date
+          // Landed fallback: if insufficient street data, try district-level first, then national
           if (Array.isArray(uraData) && uraData.length < 3 && (isLanded || !development || development === 'NIL')) {
             const landedSubTypeMap2: Record<string, string> = {
               'Terrace': 'Terrace',
@@ -214,13 +216,41 @@ export async function GET(req: NextRequest) {
             const landedTypes2 = (flatType && landedSubTypeMap2[flatType])
               ? landedSubTypeMap2[flatType]
               : 'Terrace,Semi-detached,Detached'
-            const fallbackRes = await fetch(
-              `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&property_type=in.(${landedTypes2})&order=contract_date.desc&limit=200`,
-              { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
-            )
-            if (fallbackRes.ok) {
-              const fallbackData = await fallbackRes.json()
-              if (Array.isArray(fallbackData) && fallbackData.length >= 3) uraData = fallbackData
+
+            // Derive district from postal prefix (SG postal districts D01–D28)
+            const postalPrefix = postal ? parseInt(postal.slice(0, 2), 10) : 0
+            const districtMap: Record<number, number> = {
+              1:1,2:1,3:2,4:2,5:3,6:4,7:5,8:5,9:9,10:10,
+              11:11,12:12,13:13,14:14,15:15,16:16,17:17,18:18,
+              19:19,20:20,21:21,22:22,23:23,24:24,25:25,26:26,
+              27:27,28:28,
+            }
+            const district = districtMap[postalPrefix]
+
+            // Tier 1 fallback: same district
+            if (district) {
+              const districtRes = await fetch(
+                `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&property_type=in.(${landedTypes2})&district=eq.${district}&order=contract_date.desc&limit=200`,
+                { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
+              )
+              if (districtRes.ok) {
+                const districtData = await districtRes.json()
+                if (Array.isArray(districtData) && districtData.length >= 3) {
+                  uraData = districtData
+                }
+              }
+            }
+
+            // Tier 2 fallback: national (only if district also insufficient)
+            if (Array.isArray(uraData) && uraData.length < 3) {
+              const fallbackRes = await fetch(
+                `${supabaseUrl}/rest/v1/ura_transactions?select=price,contract_date,floor_range,area,property_type,tenure,district,project&property_type=in.(${landedTypes2})&order=contract_date.desc&limit=200`,
+                { headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }, cache: 'no-store' }
+              )
+              if (fallbackRes.ok) {
+                const fallbackData = await fallbackRes.json()
+                if (Array.isArray(fallbackData) && fallbackData.length >= 3) uraData = fallbackData
+              }
             }
           }
           if (Array.isArray(uraData) && uraData.length >= 3) {
@@ -237,16 +267,17 @@ export async function GET(req: NextRequest) {
 
             let low: number, high: number
             if (validPsf.length >= 3 && propertyType !== 'Landed') {
-              // PSF-based for condo — multiply by typical sqft for unit type
+              // PSF-based for condo:
+              // low  = P25 PSF × low sqft  (conservative floor)
+              // high = P75 PSF × high sqft (optimistic ceiling)
+              // This gives a tighter, more realistic band than mid × mid
               const sqftRange = getTypicalSqft(flatType || '')
-              const psfLow = percentile(validPsf, 25)
-              const psfHigh = percentile(validPsf, 75)
-              // Use typical sqft × PSF range for tighter estimate
-              low = psfLow * sqftRange.typical
-              high = psfHigh * sqftRange.typical
+              const psfP25 = percentile(validPsf, 25)
+              const psfP75 = percentile(validPsf, 75)
+              low  = psfP25 * sqftRange.low
+              high = psfP75 * sqftRange.high
             } else {
               // Landed: use raw price range (P25-P75) filtered by sub-type
-              // PSF here is land PSF — still useful context for agents
               const prices = uraData.map((r: { price: number }) => Number(r.price)).filter((p: number) => p > 0).sort((a: number, b: number) => a - b)
               low = percentile(prices, 25)
               high = percentile(prices, 75)
@@ -318,7 +349,23 @@ export async function GET(req: NextRequest) {
           townRecords = await querySupabase(supabaseUrl, supabaseKey, { town }, 500)
         }
 
-        if (townRecords.length > allRecords.length) allRecords = townRecords
+        // Only use town data if we have more of it AND it's in a plausible range
+        // (avoids diluting a specific block result with a wildly different town median)
+        if (townRecords.length > allRecords.length) {
+          if (allRecords.length === 0) {
+            // No block data at all — use town
+            allRecords = townRecords
+          } else {
+            // Sanity check: town median should be within 30% of block median
+            const blockMedian = percentile(allRecords.map(r => r.price).sort((a, b) => a - b), 50)
+            const townMedian  = percentile(townRecords.map(r => r.price).sort((a, b) => a - b), 50)
+            const drift = Math.abs(townMedian - blockMedian) / blockMedian
+            if (drift <= 0.30) {
+              allRecords = townRecords
+            }
+            // If drift > 30%, keep the block data — small sample is more accurate than wrong town
+          }
+        }
       }
     }
 
