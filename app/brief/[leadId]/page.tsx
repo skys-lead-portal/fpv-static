@@ -542,9 +542,12 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
               <div className="stat">
                 <label>Status</label>
                 <span style={{ fontSize: 14 }}>
-                  {isPrivate ? `${meta.property_type} — ` : ''} No valuation data — check{' '}
-                  <a href={`https://sghomevaluation.com/api/valuation?postal=${meta.postal_code}&property_type=${meta.property_type}`}
-                     target="_blank" rel="noopener noreferrer" style={{color: GOLD}}>valuation API</a>
+                  {street?.includes('TENGAH') || val.development?.toUpperCase().includes('TENGAH')
+                    ? '🏗️ Tengah new estate — no resale transactions yet (MOP not reached). Advise on new launch pricing.'
+                    : isPrivate
+                      ? `${meta.property_type} — no transaction data found. Our consultant will assess.`
+                      : 'No HDB resale data — check valuation API'
+                  }
                 </span>
               </div>
             )}

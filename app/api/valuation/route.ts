@@ -48,6 +48,8 @@ function deriveHDBTown(roadName: string): string | null {
     'WOODLANDS':         ['WOODLANDS', 'MARSILING', 'WOODGROVE'],
     'YISHUN':            ['YISHUN', 'KHATIB'],
   }
+  // Tengah: new town, no resale data yet (MOP not up). Return null so caller handles gracefully.
+  if (r.includes('TENGAH') || r.includes('PLANTATION CRESCENT') || r.includes('BRICKLAND') || r.includes('GARDEN VALE')) return '__TENGAH_NEW_TOWN__'
   for (const [town, keywords] of Object.entries(map)) {
     if (keywords.some(kw => r.includes(kw))) return town
   }
@@ -87,16 +89,23 @@ function percentile(sorted: number[], p: number): number {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)
 }
 
+// ── Known HDB building name patterns (override private keyword detection) ────
+// Some HDB estates have names that look private (e.g. "PARC RESIDENCES @ TENGAH")
+// If the block number is a valid HDB block format, trust that over building name.
+const HDB_BLOCK_PATTERN = /^\d{1,4}[A-Z]?$/
+
 // ── Detect likely private/condo property ─────────────────────────────────────
 function isLikelyPrivate(block: string, development: string): boolean {
   const dev = development.toUpperCase()
+  // If block matches HDB format (e.g. "301A", "12", "45B"), it's HDB — period.
+  // Some new HDB estates have condo-sounding names (Parc Residences, The Pinnacle, etc.)
+  if (HDB_BLOCK_PATTERN.test(block)) return false
   const privateKeywords = [
     'CONDOMINIUM', 'CONDO', 'RESIDENCES', 'RESIDENCE', 'REGENT', 'SUITES', 'SUITE',
-    'APARTMENTS', 'PLAZA', 'TOWERS', 'TOWER', 'COURT', 'PARK', 'GARDEN', 'VILLA', 'VILLAS',
-    'WATERFRONT', 'SPRINGS', 'HILLS', 'HEIGHTS', 'LODGE', 'MANOR', 'GROVE',
+    'APARTMENTS', 'PLAZA', 'TOWERS', 'TOWER', 'VILLA', 'VILLAS',
+    'WATERFRONT', 'SPRINGS', 'LODGE', 'MANOR',
   ]
-  const hasHDBBlock = /^\d{1,4}[A-Z]?$/.test(block)
-  if (!hasHDBBlock && privateKeywords.some(kw => dev.includes(kw))) return true
+  if (privateKeywords.some(kw => dev.includes(kw))) return true
   if (!block || block.toLowerCase() === 'nil') return true
   return false
 }
@@ -370,7 +379,15 @@ export async function GET(req: NextRequest) {
     }
 
     if (allRecords.length < 3) {
-      return NextResponse.json({ error: 'Insufficient transaction data' }, { status: 404 })
+      // Check if this is a known new town with no resale data yet
+      const isNewTown = town === '__TENGAH_NEW_TOWN__'
+      return NextResponse.json({
+        error: 'Insufficient transaction data',
+        isNewTown,
+        message: isNewTown
+          ? 'Tengah is a new estate — no resale transactions yet (MOP not reached). Our consultant can provide a valuation estimate.'
+          : undefined,
+      }, { status: 404 })
     }
 
     const prices = allRecords.map(r => r.price).sort((a, b) => a - b)
