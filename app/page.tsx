@@ -21,6 +21,7 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<Array<{building: string, address: string, postal: string}>>([])
   const [suggestLoading, setSuggestLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [addressConfirmed, setAddressConfirmed] = useState(false)
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const postalWrapRef = useRef<HTMLDivElement>(null)
 
@@ -31,7 +32,7 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!formData.postalCode || formData.postalCode.length !== 6) { setError('Please select your property from the dropdown suggestions.'); return }
+    if (!formData.postalCode || formData.postalCode.length !== 6 || !addressConfirmed) { setError('Please search and select your property address from the dropdown.'); return }
     if (!formData.propertyType) { setError('Please select a property type.'); return }
     if (!formData.unitType) { setError('Please select a unit type.'); return }
     if (!formData.floorLevel && formData.propertyType !== 'Landed') { setError('Please select a floor level.'); return }
@@ -250,67 +251,90 @@ export default function Home() {
                   </h3>
 
                   <div style={{ marginBottom: '16px', position: 'relative' }} ref={postalWrapRef}>
-                    <label style={labelStyle}>Property Search</label>
-                    <input
-                      type="text" placeholder="Search by condo name, block or postal code"
-                      value={formData.postalDisplay || formData.postalCode}
-                      autoComplete="off"
-                      onChange={e => {
-                        const raw = e.target.value
-                        const isNumeric = /^\d+$/.test(raw)
-                        const val = isNumeric ? raw.replace(/\D/g, '') : raw
-                        setFormData(f => ({ ...f, postalCode: isNumeric ? val : '', postalDisplay: isNumeric ? '' : val }))
-                        setShowSuggestions(true)
-                        if (suggestTimer.current) clearTimeout(suggestTimer.current)
-                        if (isNumeric && val.length === 6) {
-                          setSuggestions([])
-                          setShowSuggestions(false)
-                          setFormData(f => ({ ...f, postalCode: val, postalDisplay: val }))
-                        } else if (val.length >= 3) {
-                          setSuggestLoading(true)
-                          suggestTimer.current = setTimeout(async () => {
-                            try {
-                              const res = await fetch(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(val)}&returnGeom=N&getAddrDetails=Y&pageNum=1`)
-                              const data = await res.json()
-                              const results = (data.results || []).slice(0, 6).map((r: {BUILDING?: string, ADDRESS?: string, POSTAL?: string, BLK_NO?: string, ROAD_NAME?: string}) => ({
-                                building: r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : `Blk ${r.BLK_NO} ${r.ROAD_NAME}`,
-                                address: r.ADDRESS || '',
-                                postal: r.POSTAL || ''
-                              })).filter((r: {postal: string}) => r.postal && r.postal.length === 6)
-                              setSuggestions(results)
-                            } catch { setSuggestions([]) }
-                            setSuggestLoading(false)
-                          }, 400)
-                        } else {
-                          setSuggestions([])
-                          setSuggestLoading(false)
-                        }
-                      }}
-                      onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
-                      onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                      style={inputStyle} required
-                    />
-                    {showSuggestions && (suggestLoading || suggestions.length > 0) && (
-                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1.5px solid #D1D9E6', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', marginTop: '4px', maxHeight: '240px', overflowY: 'auto' }}>
-                        {suggestLoading ? (
-                          <div style={{ padding: '12px 16px', fontSize: '13px', color: '#9ca3af' }}>Searching...</div>
-                        ) : suggestions.map((s, i) => (
-                          <div key={i}
-                            onMouseDown={e => {
-                              e.preventDefault()
-                              setFormData(f => ({ ...f, postalCode: s.postal, postalDisplay: s.address }))
-                              setShowSuggestions(false)
-                              setSuggestions([])
-                            }}
-                            style={{ padding: '11px 16px', cursor: 'pointer', borderBottom: i < suggestions.length - 1 ? '1px solid #F3F4F6' : 'none' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFD')}
-                            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                          >
-                            <div style={{ fontSize: '13px', fontWeight: 600, color: navy }}>🏡 {s.building}</div>
-                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{s.address} · {s.postal}</div>
-                          </div>
-                        ))}
+                    <label style={labelStyle}>Property Address <span style={{ color: red }}>*</span></label>
+                    {addressConfirmed ? (
+                      // Confirmed state — show address chip with clear button
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', border: `1.5px solid #16A34A`, borderRadius: '6px', background: '#F0FDF4' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <span style={{ fontSize: '13px', color: '#15803D', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.postalDisplay}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddressConfirmed(false)
+                            setFormData(f => ({ ...f, postalCode: '', postalDisplay: '' }))
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: '16px', padding: '0 2px', lineHeight: 1 }}
+                          title="Change address"
+                        >✕</button>
                       </div>
+                    ) : (
+                      // Search state
+                      <>
+                        <input
+                          type="text"
+                          placeholder="Type block number, condo name or 6-digit postal"
+                          value={formData.postalDisplay || formData.postalCode}
+                          autoComplete="off"
+                          onChange={e => {
+                            const raw = e.target.value
+                            const isNumeric = /^\d+$/.test(raw.trim())
+                            const val = isNumeric ? raw.replace(/\D/g, '') : raw
+                            // Any typing clears confirmation
+                            setAddressConfirmed(false)
+                            setFormData(f => ({ ...f, postalCode: '', postalDisplay: isNumeric ? val : val }))
+                            setShowSuggestions(true)
+                            if (suggestTimer.current) clearTimeout(suggestTimer.current)
+                            if (val.length >= 2) {
+                              setSuggestLoading(true)
+                              suggestTimer.current = setTimeout(async () => {
+                                try {
+                                  const res = await fetch(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(val)}&returnGeom=N&getAddrDetails=Y&pageNum=1`)
+                                  const data = await res.json()
+                                  const results = (data.results || []).slice(0, 8).map((r: {BUILDING?: string, ADDRESS?: string, POSTAL?: string, BLK_NO?: string, ROAD_NAME?: string}) => ({
+                                    building: r.BUILDING && r.BUILDING !== 'NIL' ? r.BUILDING : `Blk ${r.BLK_NO} ${r.ROAD_NAME}`,
+                                    address: r.ADDRESS || '',
+                                    postal: r.POSTAL || ''
+                                  })).filter((r: {postal: string}) => r.postal && r.postal.length === 6)
+                                  setSuggestions(results)
+                                } catch { setSuggestions([]) }
+                                setSuggestLoading(false)
+                              }, 350)
+                            } else {
+                              setSuggestions([])
+                              setSuggestLoading(false)
+                            }
+                          }}
+                          onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
+                          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                          style={inputStyle}
+                        />
+                        {showSuggestions && (suggestLoading || suggestions.length > 0) && (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1.5px solid #D1D9E6', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', marginTop: '4px', maxHeight: '260px', overflowY: 'auto' }}>
+                            {suggestLoading ? (
+                              <div style={{ padding: '12px 16px', fontSize: '13px', color: '#9ca3af' }}>Searching...</div>
+                            ) : suggestions.length === 0 ? (
+                              <div style={{ padding: '12px 16px', fontSize: '13px', color: '#9ca3af' }}>No results — try a different search</div>
+                            ) : suggestions.map((s, i) => (
+                              <div key={i}
+                                onMouseDown={e => {
+                                  e.preventDefault()
+                                  setFormData(f => ({ ...f, postalCode: s.postal, postalDisplay: s.address }))
+                                  setAddressConfirmed(true)
+                                  setShowSuggestions(false)
+                                  setSuggestions([])
+                                }}
+                                style={{ padding: '11px 16px', cursor: 'pointer', borderBottom: i < suggestions.length - 1 ? '1px solid #F3F4F6' : 'none' }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFD')}
+                                onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                              >
+                                <div style={{ fontSize: '13px', fontWeight: 600, color: navy }}>🏠 {s.building}</div>
+                                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>{s.address} · {s.postal}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '5px' }}>Start typing — then pick your address from the list to confirm it</p>
+                      </>
                     )}
                   </div>
 
