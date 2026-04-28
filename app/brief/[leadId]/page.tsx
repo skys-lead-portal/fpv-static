@@ -12,6 +12,7 @@ type Lead = {
   created_at: string
   metadata: {
     postal_code?: string
+    postal_display?: string
     property_type?: string
     unit_type?: string
     floor_level?: string
@@ -456,7 +457,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                 <span style={{ fontSize: 14 }}>
                   {val.development && val.development !== 'NIL'
                     ? val.development
-                    : block ? `Blk ${block} ${street}` : street || `Postal ${meta.postal_code}`}
+                    : block ? `Blk ${block} ${street}` : street || meta.postal_display || `Postal ${meta.postal_code}`}
                 </span>
                 <sub>Postal: {meta.postal_code}{town ? ` · ${town}` : ''}</sub>
               </div>

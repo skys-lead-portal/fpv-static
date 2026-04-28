@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       lead_score_reason: 'FPV form submission',
       metadata: {
         postal_code: postalCode,
+        postal_display: postalDisplay || null,
         property_type: propertyType || 'Unknown',
         unit_type: unitType,
         floor_level: floorLevel,
