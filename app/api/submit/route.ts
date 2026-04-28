@@ -26,7 +26,7 @@ async function supabaseFetch(url: string, key: string, body: Record<string, unkn
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { postalCode, propertyType, unitType, floorLevel, name, mobile, valuation } = body
+    const { postalCode, postalDisplay, propertyType, unitType, floorLevel, name, mobile, valuation } = body
 
     // ── Validate ─────────────────────────────────────────────────────────────
     const isLanded = propertyType === 'Landed'
@@ -104,9 +104,11 @@ export async function POST(req: NextRequest) {
         const genericNames = ['NIL', 'LANDED HOUSING DEVELOPMENT', '']
         const devName = (valObj?.development && !genericNames.includes(valObj.development))
           ? valObj.development
-          : (valObj?.street && valObj.street !== '')
-            ? valObj?.block ? `Blk ${valObj.block} ${valObj.street}` : valObj.street
-            : postalCode
+          : (valObj?.block && valObj?.street)
+            ? `Blk ${valObj.block} ${valObj.street}`
+            : (valObj?.street && valObj.street !== '')
+              ? valObj.street
+              : postalDisplay || `Postal ${postalCode}`
         const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64')
 
         const twilioRes = await fetch(
@@ -149,10 +151,14 @@ export async function POST(req: NextRequest) {
           : val?.isPrivate ? `\n💰 Private property (${propertyType}) — consultant to advise`
           : ''
         const briefLink = leadId ? `\n📋 [Agent Brief](https://sghomevaluation.com/brief/${leadId})` : ''
-        // Show "Blk X Street" instead of NIL for HDB blocks
+        // Show "Blk X Street" instead of NIL for HDB blocks; fall back to confirmed address from form
         const devName = (val?.development && val.development !== 'NIL')
           ? val.development
-          : `Blk ${val?.block || ''} ${val?.street || postalCode}`.trim().replace(/^Blk\s+$/, postalCode)
+          : (val?.block && val?.street)
+            ? `Blk ${val.block} ${val.street}`
+            : (val?.street && val.street !== '')
+              ? val.street
+              : postalDisplay || `Postal ${postalCode}`
         const lines = [
           `🏠 *New SGHomeValuation Lead*`,
           `👤 ${name.trim()}`,
