@@ -302,6 +302,12 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
 
   const isLandedType = meta.property_type === 'Landed'
 
+  // Tengah detection: postal 69xxxx range = Tengah estate (new town, no resale data)
+  const postalNum = parseInt((meta.postal_code || '').slice(0, 2), 10)
+  const isTengah = postalNum === 69
+    || street.toUpperCase().includes('TENGAH')
+    || (val.development || '').toUpperCase().includes('TENGAH')
+
   const [uraComparables, uraTrend, comparables, trend, hdbFloorPremiumData] = await Promise.all([
     isPrivate ? getURAComparables(val.development || '', street, meta.property_type || '', meta.unit_type) : Promise.resolve([]),
     isPrivate ? getURATrend(val.development || '', street, isLandedType) : Promise.resolve(null),
@@ -542,7 +548,7 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
               <div className="stat">
                 <label>Status</label>
                 <span style={{ fontSize: 14 }}>
-                  {street?.includes('TENGAH') || val.development?.toUpperCase().includes('TENGAH')
+                  {isTengah
                     ? '🏗️ Tengah new estate — no resale transactions yet (MOP not reached). Advise on new launch pricing.'
                     : isPrivate
                       ? `${meta.property_type} — no transaction data found. Our consultant will assess.`
@@ -678,7 +684,9 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
               <p>
                 {val.estimatedLow
                   ? `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently checked your property valuation online — I've prepared a market analysis for your ${isPrivate ? (val.development || street) : `${flatType} in ${town}`}. Current market range is ${val.estimatedLow}–${val.estimatedHigh} based on ${val.transactionCount} recent transactions. Do you have 5 minutes?"`
-                  : `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently requested a property valuation — I'd like to share what we found for your area. Do you have 5 minutes?"`
+                  : isTengah
+                    ? `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently checked your Tengah property valuation — as a brand new estate, there are no resale transactions yet, but I have market insights on comparable nearby properties that may be helpful. Do you have 5 minutes?"`
+                    : `"Hi ${lead.full_name.split(' ')[0]}, I'm calling from SKYS Financial Advisory. You recently requested a property valuation — I'd like to share what we found for your area. Do you have 5 minutes?"`
                 }
               </p>
             </div>
