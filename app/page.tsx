@@ -570,7 +570,7 @@ export default function Home() {
                     <span style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.6 }}>
                       By submitting this form, I confirm that I have read and understood the{' '}
                       <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: navy, textDecoration: 'underline' }}>Privacy Policy</a>
-                      {' '}and consent to SKYS Branch Pte Ltd collecting, using, disclosing and retaining my personal data to contact me regarding my enquiry and provide financial advisory information relating to products distributed by Manulife Financial Advisers Pte Ltd. I consent to being contacted via phone, SMS, WhatsApp, and email, even if my number is listed on the Do Not Call Registry (DNCR). I understand I may withdraw this consent at any time.
+                      {' '}and consent to Rewardhub Digital Pte. Ltd. collecting, using, disclosing and retaining my personal data to contact me regarding my enquiry and provide financial advisory information. I consent to being contacted via phone, SMS, WhatsApp, and email, even if my number is listed on the Do Not Call Registry (DNCR). I understand I may withdraw this consent at any time.
                     </span>
                   </label>
 

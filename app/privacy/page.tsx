@@ -36,16 +36,16 @@ export default function PrivacyPage() {
         <section style={{ background: "#EFF4FB", border: `1px solid ${navy}30`, borderRadius: 16, padding: "24px", marginBottom: 32 }}>
           <h2 style={{ fontSize: 16, fontWeight: 800, color: navy, marginBottom: 12 }}>Consent Statement</h2>
           <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.75 }}>
-            By submitting this form, I confirm that I have read, acknowledge and authorise SKYS Branch Pte Ltd (&ldquo;SKYS&rdquo;) and their Representatives to collect, use, disclose and retain my personal data for the purpose of contacting me for the provision of a free property valuation and related financial advisory services and products distributed by Manulife.
+            By submitting this form, I confirm that I have read, acknowledge and authorise Rewardhub Digital Pte. Ltd. (&ldquo;Rewardhub&rdquo;) and their Representatives to collect, use, disclose and retain my personal data for the purpose of contacting me for the provision of a free property valuation and related financial advisory services.
           </p>
           <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.75, marginTop: 12 }}>
-            By submitting your personal details, you confirm that you have read and understood this Privacy Policy and consent to SKYS Branch Pte Ltd collecting, using, disclosing and retaining your personal data for the following purposes:
+            By submitting your personal details, you confirm that you have read and understood this Privacy Policy and consent to Rewardhub Digital Pte. Ltd. collecting, using, disclosing and retaining your personal data for the following purposes:
           </p>
           <ul style={{ fontSize: 14, color: "#374151", lineHeight: 1.85, marginTop: 10, paddingLeft: 20 }}>
             <li>To contact you regarding your property valuation enquiry or request</li>
-            <li>To connect you with a licensed property consultant from Singapore&apos;s top agencies</li>
-            <li>To provide you with information, advice, and recommendations relating to financial advisory services and products distributed by Manulife Financial Advisers Pte Ltd</li>
-            <li>To disclose and transfer your personal data to SKYS Branch, a branch representing Manulife Financial Advisers Pte Ltd, strictly for follow-up and servicing of your enquiry</li>
+            <li>To connect you with a licensed property consultant</li>
+            <li>To provide you with information, advice, and recommendations relating to financial advisory services</li>
+            <li>To disclose and transfer your personal data to licensed financial advisory representatives strictly for follow-up and servicing of your enquiry</li>
           </ul>
           <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.75, marginTop: 12 }}>
             You acknowledge and agree that your personal data may be transferred as part of a commercial lead generation arrangement to the above parties for the purposes stated.
@@ -54,7 +54,7 @@ export default function PrivacyPage() {
             You confirm that the personal data provided is accurate and that you are the user/subscriber of the contact details submitted.
           </p>
           <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.75, marginTop: 12 }}>
-            You agree and consent to SKYS Branch Pte Ltd and SKYS Branch contacting you via <strong>phone calls, SMS, WhatsApp, and email</strong> for marketing, promotional, and advisory purposes relating to financial products, services, and property matters, <strong>even if your telephone number is registered with the Singapore Do Not Call Registry (DNCR)</strong>.
+            You agree and consent to Rewardhub Digital Pte. Ltd. contacting you via <strong>phone calls, SMS, WhatsApp, and email</strong> for marketing, promotional, and advisory purposes relating to financial products, services, and property matters, <strong>even if your telephone number is registered with the Singapore Do Not Call Registry (DNCR)</strong>.
           </p>
           <p style={{ fontSize: 14, color: "#374151", lineHeight: 1.75, marginTop: 12 }}>
             You understand that you may withdraw this consent at any time.
@@ -62,8 +62,8 @@ export default function PrivacyPage() {
         </section>
 
         <Section title="1. Introduction" navy={navy}>
-          <p>This Privacy Policy describes how SKYS Branch Pte Ltd (&ldquo;SKYS&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) collects, uses, discloses and protects your personal data in accordance with the Personal Data Protection Act 2012 (PDPA) of Singapore.</p>
-          <p>SKYS acts as the data controller for the personal data collected through SGHomeValuation.com.</p>
+          <p>This Privacy Policy describes how Rewardhub Digital Pte. Ltd. (&ldquo;Rewardhub&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) collects, uses, discloses and protects your personal data in accordance with the Personal Data Protection Act 2012 (PDPA) of Singapore.</p>
+          <p>Rewardhub acts as the data controller for the personal data collected through SGHomeValuation.com.</p>
         </Section>
 
         <Section title="2. Personal Data We Collect" navy={navy}>
@@ -82,9 +82,9 @@ export default function PrivacyPage() {
           <p>Your personal data is collected and used for the following purposes:</p>
           <ul>
             <li>Providing you with a free property valuation report</li>
-            <li>Connecting you with licensed property consultants from ERA Real Estate, Huttons, PropNex, and OrangeTee &amp; Tie</li>
+            <li>Connecting you with licensed property consultants</li>
             <li>Providing financial advisory-related information and recommendations</li>
-            <li>Facilitating contact with SKYS Branch, a branch representing Manulife Financial Advisers Pte Ltd</li>
+            <li>Facilitating contact with licensed financial advisory representatives</li>
             <li>Marketing, promotions, and offers (where consent is given)</li>
             <li>Internal analysis, lead qualification, and service improvement</li>
           </ul>
@@ -93,11 +93,10 @@ export default function PrivacyPage() {
         <Section title="4. Disclosure and Transfer of Personal Data" navy={navy}>
           <p>We may disclose and transfer your personal data to:</p>
           <ul>
-            <li><strong>Licensed Property Consultants</strong> — from ERA Real Estate, Huttons, PropNex, and OrangeTee &amp; Tie, for the purpose of delivering your property valuation</li>
-            <li><strong>Financial Advisory Representatives</strong> — SKYS Branch, a branch representing Manulife Financial Advisers Pte Ltd</li>
-            <li><strong>Manulife Financial Advisers Pte Ltd</strong> — for purposes of advisory, servicing, compliance, and record-keeping</li>
+            <li><strong>Licensed Property Consultants</strong> — for the purpose of delivering your property valuation</li>
+            <li><strong>Financial Advisory Representatives</strong> — licensed financial advisers engaged by Rewardhub Digital</li>
             <li><strong>Service Providers</strong> — CRM systems, cloud hosting providers, marketing platforms, analytics tools</li>
-            <li><strong>Commercial Lead Arrangement</strong> — We may transfer your personal data as part of a commercial lead generation arrangement to SKYS Branch, strictly for the purposes stated in this Policy</li>
+            <li><strong>Commercial Lead Arrangement</strong> — We may transfer your personal data as part of a commercial lead generation arrangement to licensed financial advisory representatives, strictly for the purposes stated in this Policy</li>
             <li><strong>Legal Disclosure</strong> — Where required by law, regulation, or legal process</li>
           </ul>
           <p style={{ marginTop: 10 }}>We do not disclose your personal data to unrelated third parties outside the above scope without your consent.</p>
@@ -125,7 +124,7 @@ export default function PrivacyPage() {
 
         <Section title="10. Access, Correction and Withdrawal" navy={navy}>
           <p>You may request access to your personal data, request correction of inaccurate data, or withdraw your consent at any time. Please contact:</p>
-          <p style={{ marginTop: 8 }}><strong>📧 </strong><a href="mailto:skysleadgen@gmail.com" style={{ color: navy }}>skysleadgen@gmail.com</a></p>
+          <p style={{ marginTop: 8 }}><strong>📧 </strong><a href="mailto:hello.rewardhub@gmail.com" style={{ color: navy }}>hello.rewardhub@gmail.com</a></p>
           <p style={{ marginTop: 4 }}>We will respond within a reasonable timeframe (generally within 14 days).</p>
         </Section>
 
@@ -138,7 +137,7 @@ export default function PrivacyPage() {
         </Section>
 
         <div style={{ marginTop: 40, padding: "20px 24px", background: "#fff", border: "1px solid #E5E7EB", borderRadius: 14, fontSize: 13, color: "#6B7280", textAlign: "center" }}>
-          SKYS Branch Pte Ltd · Singapore · Representing Manulife Financial Advisers Pte Ltd
+          © {new Date().getFullYear()} Rewardhub Digital Pte. Ltd. All rights reserved.
         </div>
       </div>
     </main>
