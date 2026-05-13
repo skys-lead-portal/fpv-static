@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const SOURCE_ID = '5e434bf3-db09-4b18-98ee-4aa33dcb1ffe'
-const FPV_TEMPLATE_SID = 'HX69f7cefc0a314046e11b154630395ff1' // fpv_property_valuation_v2 (updated May 1 2026)
+const FPV_TEMPLATE_SID = 'HX9163d1deac0979946a93b5904e001a09' // fpv_property_valuation_v3 (UTILITY)
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, '')
