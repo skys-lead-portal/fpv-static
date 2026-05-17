@@ -118,11 +118,22 @@ async function getURAComparables(development: string, street: string, propertyTy
 
 function formatContractDate(d: string): string {
   if (!d || d.length < 4) return d
-  const month = d.slice(0, 2)
-  const year = d.slice(2, 4)
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const m = parseInt(month) - 1
-  return `${months[m] || month} 20${year}`
+  // URA format: MMYY (e.g. "1124" = Nov 2024)
+  if (/^\d{4}$/.test(d)) {
+    const month = d.slice(0, 2)
+    const year = d.slice(2, 4)
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const m = parseInt(month) - 1
+    return `${months[m] || month} 20${year}`
+  }
+  // ISO format: YYYY-MM or YYYY-MM-DD
+  if (d.includes('-')) {
+    const parts = d.split('-')
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const m = parseInt(parts[1]) - 1
+    return `${months[m] || parts[1]} ${parts[0]}`
+  }
+  return d
 }
 
 async function getLead(leadId: string): Promise<Lead | null> {
@@ -280,6 +291,25 @@ async function getURAFloorPremium(development: string, unitType: string): Promis
   }
 }
 
+// Live-fetch valuation from the /api/valuation endpoint (server-side, same origin via env)
+async function fetchLiveValuation(postalCode: string, propertyType: string, unitType: string) {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://sghomevaluation.com'
+    const params = new URLSearchParams({
+      postal: postalCode,
+      property_type: propertyType,
+      flat_type: unitType,
+    })
+    const res = await fetch(`${baseUrl}/api/valuation?${params}`, { cache: 'no-store' })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data.error) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
 export default async function BriefPage({ params }: { params: Promise<{ leadId: string }> }) {
   const { leadId } = await params
   const lead = await getLead(leadId)
@@ -294,6 +324,17 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
   }
 
   const meta = lead.metadata || {}
+
+  // If valuation was not saved at submit time, re-fetch it live now
+  if (!meta.valuation && meta.postal_code) {
+    const live = await fetchLiveValuation(
+      meta.postal_code,
+      meta.property_type || 'HDB',
+      meta.unit_type || ''
+    )
+    if (live) meta.valuation = live
+  }
+
   const val = meta.valuation || {}
   const town = val.town || ''
   const flatType = meta.unit_type || ''
@@ -517,13 +558,18 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                 <div className="val-range" style={{ marginBottom: 14 }}>
                   <div className="range">{val.estimatedLow} – {val.estimatedHigh}</div>
                   <div style={{ fontSize: 14, color: GOLD, fontWeight: 700, marginTop: 4 }}>Midpoint: {midpoint}</div>
-                  <div className="basis">{val.transactionCount} comparable transactions · Data to {val.latestMonth}</div>
+                  <div className="basis">{val.transactionCount} comparable transactions · Data to {formatContractDate(val.latestMonth || '')}</div>
                   {val.psfLow && val.psfHigh && (
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
                       {meta.property_type === 'Landed' ? 'Land PSF' : 'PSF'}: S${val.psfLow.toLocaleString()} – S${val.psfHigh.toLocaleString()} psf
                     </div>
                   )}
                 </div>
+                {isPrivate && val.transactionCount && val.transactionCount < 15 && (
+                  <div className="warn" style={{ marginBottom: 14 }}>
+                    ⚠️ <strong>Wide range note:</strong> Only {val.transactionCount} transactions found. Range reflects mixed unit sizes at this development — anchor your conversation on PSF (S${val.psfLow?.toLocaleString() || '—'} – S${val.psfHigh?.toLocaleString() || '—'} psf), not the total price.
+                  </div>
+                )}
                 <div className="grid2">
                   <div className="stat">
                     <label>Market Trend</label>
@@ -598,19 +644,25 @@ export default async function BriefPage({ params }: { params: Promise<{ leadId: 
                     <th>Area (sqft)</th>
                     <th>Model</th>
                     <th>Price</th>
+                    <th>PSF</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {comparables.map((t, i) => (
-                    <tr key={i}>
-                      <td>{t.month}</td>
-                      <td>Blk {t.block}</td>
-                      <td>{t.storey_range}</td>
-                      <td>{t.floor_area_sqm ? `${Math.round(parseFloat(t.floor_area_sqm) * 10.764).toLocaleString()} sqft` : '—'}</td>
-                      <td>{t.flat_model}</td>
-                      <td className="price">S${Number(t.resale_price).toLocaleString()}</td>
-                    </tr>
-                  ))}
+                  {comparables.map((t, i) => {
+                    const sqft = t.floor_area_sqm ? Math.round(parseFloat(t.floor_area_sqm) * 10.764) : 0
+                    const psf = sqft > 0 ? Math.round(Number(t.resale_price) / sqft) : 0
+                    return (
+                      <tr key={i}>
+                        <td>{formatContractDate(t.month)}</td>
+                        <td>Blk {t.block}</td>
+                        <td>{t.storey_range}</td>
+                        <td>{sqft > 0 ? `${sqft.toLocaleString()} sqft` : '—'}</td>
+                        <td>{t.flat_model}</td>
+                        <td className="price">S${Number(t.resale_price).toLocaleString()}</td>
+                        <td style={{ color: '#6B7280', fontSize: 12 }}>{psf > 0 ? `S$${psf.toLocaleString()}` : '—'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
